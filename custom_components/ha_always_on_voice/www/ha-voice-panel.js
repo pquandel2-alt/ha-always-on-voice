@@ -12,16 +12,25 @@ class HaVoicePanel extends HTMLElement {
     if (this._rendered) return;
     this._rendered = true;
 
+    // Fixed positioning instead of width/height:100% — HA wraps custom
+    // panels in ancestors that don't reliably provide a definite height,
+    // which makes percentage-based sizing collapse to the iframe's
+    // intrinsic default (~150px). Fixed positioning ties us to the
+    // viewport directly instead.
     this.style.display = "block";
-    this.style.width = "100%";
-    this.style.height = "100%";
+    this.style.position = "fixed";
+    this.style.inset = "0";
+    this.style.width = "100vw";
+    this.style.height = "100vh";
 
     const iframe = document.createElement("iframe");
     iframe.id = "voice-app";
     iframe.src = this._getAppUrl();
     iframe.setAttribute("allow", "microphone");
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
+    iframe.style.position = "fixed";
+    iframe.style.inset = "0";
+    iframe.style.width = "100vw";
+    iframe.style.height = "100vh";
     iframe.style.border = "none";
     iframe.style.display = "block";
     iframe.addEventListener("load", () => this._maybeSendToken());
