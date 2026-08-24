@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Always-On Voice",
+        "description": "Richten Sie die Voice-Assist-Integration ein",
+        "data": {
+          "name": "Integrations-Name"
+        }
+      }
+    }
+  }
+}

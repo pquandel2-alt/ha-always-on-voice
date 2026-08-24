@@ -1,0 +1,47 @@
+{
+  "name": "HA Voice Assist",
+  "short_name": "Voice",
+  "description": "Always-on voice control for Home Assistant",
+  "start_url": "/ha_voice_app/index.html",
+  "scope": "/ha_voice_app/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "icons": [
+    {
+      "src": "/ha_voice_app/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ha_voice_app/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["productivity"],
+  "screenshots": [
+    {
+      "src": "/ha_voice_app/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Voice Control",
+      "short_name": "Voice",
+      "description": "Open Voice Assist",
+      "url": "/ha_voice_app/index.html",
+      "icons": [
+        {
+          "src": "/ha_voice_app/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
