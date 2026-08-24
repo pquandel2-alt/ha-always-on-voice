@@ -1,55 +1,45 @@
-import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/lit@3/dist/index.js";
-
-class HaVoicePanel extends LitElement {
-  static get properties() {
-    return {
-      hass: { type: Object },
-      narrow: { type: Boolean },
-      route: { type: Object },
-    };
+class HaVoicePanel extends HTMLElement {
+  set hass(value) {
+    this._hass = value;
+    this._maybeSendToken();
   }
 
-  static get styles() {
-    return css`
-      :host {
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
-      iframe {
-        width: 100%;
-        height: 100%;
-        border: none;
-        display: block;
-      }
-    `;
+  get hass() {
+    return this._hass;
   }
 
-  render() {
-    return html`
-      <iframe
-        id="voice-app"
-        src="${this._getAppUrl()}"
-        allow="microphone"
-        @load="${this._onIframeLoad}"
-      ></iframe>
-    `;
+  connectedCallback() {
+    if (this._rendered) return;
+    this._rendered = true;
+
+    this.style.display = "block";
+    this.style.width = "100%";
+    this.style.height = "100%";
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "voice-app";
+    iframe.src = this._getAppUrl();
+    iframe.setAttribute("allow", "microphone");
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.style.border = "none";
+    iframe.style.display = "block";
+    iframe.addEventListener("load", () => this._maybeSendToken());
+
+    this._iframe = iframe;
+    this.appendChild(iframe);
   }
 
   _getAppUrl() {
-    const url = new URL("/ha_voice_app/index.html", window.location.origin);
-    return url.toString();
+    return new URL("/ha_voice_app/index.html", window.location.origin).toString();
   }
 
-  _onIframeLoad() {
-    const iframe = this.shadowRoot.querySelector("iframe");
+  _maybeSendToken() {
+    const iframe = this._iframe;
     if (!iframe || !iframe.contentWindow) return;
 
-    const token = this.hass?.auth?.accessToken;
-    if (!token) {
-      console.error("No access token available");
-      return;
-    }
+    const token = this._hass?.auth?.accessToken;
+    if (!token) return;
 
     iframe.contentWindow.postMessage(
       {

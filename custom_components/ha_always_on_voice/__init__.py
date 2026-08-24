@@ -19,7 +19,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_FRONTEND_VERSION = "0.1.0"
+_FRONTEND_VERSION = "0.1.3"
 
 PLATFORMS: list[str] = []
 
