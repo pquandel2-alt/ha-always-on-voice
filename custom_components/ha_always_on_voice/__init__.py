@@ -52,8 +52,13 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths(
             [
                 StaticPathConfig(
-                    f"/static/{DOMAIN}/",
+                    f"/static/{DOMAIN}",
                     str(www),
+                    False,
+                ),
+                StaticPathConfig(
+                    "/ha_voice_app",
+                    str(www / "app"),
                     False,
                 ),
             ]
