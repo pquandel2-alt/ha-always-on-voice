@@ -8,6 +8,7 @@ from pathlib import Path
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import (
@@ -17,29 +18,34 @@ from .const import (
     PANEL_TITLE,
     PANEL_URL_PATH,
 )
+from .websocket_api import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
-_FRONTEND_VERSION = "0.1.3"
+_FRONTEND_VERSION = "0.2.0"
 
-PLATFORMS: list[str] = []
+PLATFORMS: list[Platform] = [Platform.ASSIST_SATELLITE, Platform.SELECT]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the integration from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+    store = hass.data.setdefault(DOMAIN, {})
     await _async_register_frontend(hass)
+    if not store.get("websocket_api_registered"):
+        async_register_websocket_api(hass)
+        store["websocket_api_registered"] = True
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload the integration."""
-    await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     store = hass.data.get(DOMAIN, {})
+    store.pop("satellite", None)
     if store.get("panel_registered"):
         frontend.async_remove_panel(hass, PANEL_URL_PATH)
         store["panel_registered"] = False
-    return True
+    return unloaded
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:

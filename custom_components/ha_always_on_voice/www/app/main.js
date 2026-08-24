@@ -15,7 +15,6 @@ class VoiceAssistApp {
     this.assistResponse = document.getElementById("assistResponse");
     this.userTranscript = document.getElementById("userTranscript");
     this.settingsPanel = document.getElementById("settingsPanel");
-    this.pipelineSelect = document.getElementById("pipelineSelect");
     this.settingsBtn = document.getElementById("settingsBtn");
     this.closeSettingsBtn = document.getElementById("closeSettingsBtn");
     this.testMicBtn = document.getElementById("testMicBtn");
@@ -39,12 +38,6 @@ class VoiceAssistApp {
 
     this.closeSettingsBtn.addEventListener("click", () => {
       this.settingsPanel.classList.remove("open");
-    });
-
-    this.pipelineSelect.addEventListener("change", (e) => {
-      if (this.pipeline) {
-        this.pipeline.setPipeline(e.target.value);
-      }
     });
 
     this.testMicBtn.addEventListener("click", () => this._testMicrophone());
@@ -118,21 +111,8 @@ class VoiceAssistApp {
   }
 
   _onPipelineConnected() {
-    this._updatePipelineList();
-  }
-
-  _updatePipelineList() {
-    const pipelines = this.pipeline.getPipelines();
-    this.pipelineSelect.innerHTML = "";
-    pipelines.forEach((p) => {
-      const option = document.createElement("option");
-      option.value = p.id;
-      option.textContent = p.name || p.id;
-      this.pipelineSelect.appendChild(option);
-    });
-    if (pipelines.length > 0) {
-      this.pipelineSelect.value = pipelines[0].id;
-    }
+    // Pipeline/VAD sensitivity are configured on the device page under
+    // Settings -> Voice assistants -> Devices, nothing to do here.
   }
 
   _startListening() {
@@ -179,7 +159,9 @@ class VoiceAssistApp {
   }
 
   _onIntentEnd(data) {
-    // Processing continues
+    if (data.responseText) {
+      this.assistResponse.textContent = data.responseText;
+    }
   }
 
   _onTtsStart() {

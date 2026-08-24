@@ -5,3 +5,5 @@ PANEL_TITLE = "Voice Assist"
 PANEL_ICON = "mdi:microphone"
 PANEL_URL_PATH = "ha_always_on_voice"
 FRONTEND_URL = "/static/ha_always_on_voice/ha-voice-panel.js"
+
+WS_TYPE_RUN = f"{DOMAIN}/run"

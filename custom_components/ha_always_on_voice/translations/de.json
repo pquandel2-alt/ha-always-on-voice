@@ -9,5 +9,23 @@
         }
       }
     }
+  },
+  "entity": {
+    "select": {
+      "pipeline": {
+        "name": "Assistent",
+        "state": {
+          "preferred": "Bevorzugt"
+        }
+      },
+      "vad_sensitivity": {
+        "name": "Spracherkennung: Ende der Sprachausgabe",
+        "state": {
+          "default": "Standard",
+          "aggressive": "Aggressiv",
+          "relaxed": "Entspannt"
+        }
+      }
+    }
   }
 }

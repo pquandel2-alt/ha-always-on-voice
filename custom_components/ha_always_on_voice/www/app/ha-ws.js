@@ -1,6 +1,9 @@
 /**
  * Home Assistant WebSocket Pipeline Client
- * Manages communication with HA's assist_pipeline/run
+ * Streams audio through the integration's ha_always_on_voice/run command,
+ * which runs the pipeline via the registered Assist satellite entity.
+ * Pipeline + VAD sensitivity are configured on the device page under
+ * Settings -> Voice assistants -> Devices, not in this app.
  */
 
 class HAVoicePipeline {
@@ -9,8 +12,6 @@ class HAVoicePipeline {
     this.accessToken = accessToken;
     this.ws = null;
     this.msgId = 1;
-    this.pipelines = [];
-    this.selectedPipeline = null;
 
     // Event callbacks
     this.onSttStart = null;
@@ -35,7 +36,6 @@ class HAVoicePipeline {
 
       this.ws.onopen = async () => {
         await this._authenticate();
-        await this._loadPipelines();
         if (this.onConnected) {
           this.onConnected();
         }
@@ -98,68 +98,18 @@ class HAVoicePipeline {
     });
   }
 
-  async _loadPipelines() {
-    return new Promise((resolve) => {
-      const msgId = this.msgId++;
-      const msg = {
-        id: msgId,
-        type: "assist_pipeline/pipeline/list",
-      };
-      this.ws.send(JSON.stringify(msg));
-
-      const onMessage = (event) => {
-        if (typeof event.data === "string") {
-          const message = JSON.parse(event.data);
-          if (message.id === msgId && message.type === "result") {
-            this.ws.removeEventListener("message", onMessage);
-            this.pipelines = message.result?.pipelines || [];
-            // Set first pipeline as default
-            if (this.pipelines.length > 0) {
-              this.selectedPipeline = this.pipelines[0].id;
-            }
-            resolve();
-          }
-        }
-      };
-      this.ws.addEventListener("message", onMessage);
-    });
-  }
-
-  getPipelines() {
-    return this.pipelines;
-  }
-
-  setPipeline(pipelineId) {
-    const pipeline = this.pipelines.find((p) => p.id === pipelineId);
-    if (pipeline) {
-      this.selectedPipeline = pipelineId;
-    }
-  }
-
   /**
-   * Start a pipeline run for voice processing
-   * @param {Int16Array} audioData - Initial audio chunk (optional)
+   * Start a pipeline run for voice processing via the satellite entity
    */
-  async startPipeline(audioData = null) {
+  async startPipeline() {
     const msgId = this.msgId++;
     const msg = {
       id: msgId,
-      type: "assist_pipeline/run",
-      start_stage: "stt",
-      end_stage: "tts",
-      input: {
-        sample_rate: 16000,
-      },
-      pipeline: this.selectedPipeline,
+      type: "ha_always_on_voice/run",
+      sample_rate: 16000,
     };
 
     this.ws.send(JSON.stringify(msg));
-
-    // Send initial audio if provided
-    if (audioData) {
-      this._sendAudioChunk(audioData);
-    }
-
     return msgId;
   }
 
@@ -195,70 +145,79 @@ class HAVoicePipeline {
   }
 
   _handleMessage(message) {
-    switch (message.type) {
-      case "result":
-        // Ignore result messages (responses to list calls)
-        break;
+    if (message.type === "result") {
+      if (message.success === false) {
+        console.error("Pipeline command failed:", message.error);
+        if (this.onError) {
+          this.onError(new Error(message.error?.message || "Command failed"));
+        }
+      }
+      return;
+    }
 
-      case "assist_pipeline/stt-start":
+    if (message.type !== "event" || !message.event) {
+      return;
+    }
+
+    const { type, data } = message.event;
+
+    switch (type) {
+      case "stt-start":
         if (this.onSttStart) {
           this.onSttStart();
         }
         break;
 
-      case "assist_pipeline/stt-end":
+      case "stt-end":
         if (this.onSttEnd) {
           this.onSttEnd({
-            transcript: message.data?.transcript || "",
+            transcript: data?.stt_output?.text || "",
           });
         }
         break;
 
-      case "assist_pipeline/intent-start":
+      case "intent-start":
         if (this.onIntentStart) {
           this.onIntentStart();
         }
         break;
 
-      case "assist_pipeline/intent-end":
+      case "intent-end":
         if (this.onIntentEnd) {
-          this.onIntentEnd({
-            intent: message.data?.intent || {},
-          });
+          const speech = data?.intent_output?.response?.speech?.plain?.speech;
+          this.onIntentEnd({ responseText: speech || "" });
         }
         break;
 
-      case "assist_pipeline/tts-start":
+      case "tts-start":
         if (this.onTtsStart) {
           this.onTtsStart();
         }
         break;
 
-      case "assist_pipeline/tts-end":
+      case "tts-end":
         if (this.onTtsEnd) {
           this.onTtsEnd({
-            url: message.data?.url || "",
+            url: data?.tts_output?.url || "",
           });
         }
         break;
 
-      case "assist_pipeline/run-end":
+      case "run-end":
         if (this.onRunEnd) {
-          this.onRunEnd({
-            success: message.data?.success !== false,
-          });
+          this.onRunEnd({ success: true });
         }
         break;
 
-      case "assist_pipeline/error":
-        console.error("Pipeline error:", message.data);
+      case "error":
+        console.error("Pipeline error:", data);
         if (this.onError) {
-          this.onError(new Error(message.data?.message || "Unknown error"));
+          this.onError(new Error(data?.message || "Unknown error"));
         }
         break;
 
       default:
-        // Ignore unknown message types
+        // Ignore unhandled event types (wake-word-*, stt-vad-*, ...)
         break;
     }
   }

@@ -1,6 +1,6 @@
 {
   "name": "HA Always-On Voice",
-  "homeassistant": "2024.1.0",
+  "homeassistant": "2024.10.0",
   "render_readme": true,
-  "domains": ["frontend"]
+  "domains": ["frontend", "assist_satellite", "select"]
 }
