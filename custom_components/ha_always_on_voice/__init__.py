@@ -63,9 +63,6 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
                 ),
             ]
         )
-        frontend.add_extra_js_url(
-            hass, f"{FRONTEND_URL}?v={_FRONTEND_VERSION}"
-        )
         store["frontend_registered"] = True
 
     if store.get("panel_registered"):
@@ -73,11 +70,13 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
 
     await panel_custom.async_register_panel(
         hass,
-        module_name=DOMAIN,
-        panel_name="ha-voice-panel",
+        frontend_url_path=PANEL_URL_PATH,
+        webcomponent_name="ha-voice-panel",
+        module_url=f"{FRONTEND_URL}?v={_FRONTEND_VERSION}",
         sidebar_title=PANEL_TITLE,
         sidebar_icon=PANEL_ICON,
-        frontend_url_path=PANEL_URL_PATH,
         require_admin=False,
+        config={},
+        embed_iframe=False,
     )
     store["panel_registered"] = True
