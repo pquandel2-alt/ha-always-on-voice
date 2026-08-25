@@ -61,6 +61,9 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.match(markup, /clipPath id="auroraClip"/);
   assert.match(markup, /animate attributeName="d"/);
   assert.match(markup, /repeatCount="indefinite"/);
+  assert.match(markup, /class="svg-specular"/);
+  assert.match(markup, /class="svg-caustic svg-caustic-one"/);
+  assert.match(markup, /stroke="url\(#rimLight\)"/);
   assert.doesNotMatch(orbRule, /overflow:\s*hidden/);
   assert.doesNotMatch(orbRule, /border-radius/);
 });

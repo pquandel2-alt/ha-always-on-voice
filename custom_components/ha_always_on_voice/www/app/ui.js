@@ -41,9 +41,11 @@ globalThis.HAVoiceMarkup = `
           <svg class="voice-core-svg" viewBox="0 0 200 200" role="presentation">
             <defs>
               <linearGradient id="fluidBase" x1="20%" y1="10%" x2="82%" y2="92%">
-                <stop offset="0" stop-color="#b7fff0"/>
-                <stop class="svg-accent-stop" offset="0.43"/>
-                <stop offset="1" stop-color="#276f9d"/>
+                <stop offset="0" stop-color="#e1fff9"/>
+                <stop offset="0.18" stop-color="#94f3de"/>
+                <stop class="svg-accent-stop" offset="0.48"/>
+                <stop offset="0.76" stop-color="#247da8"/>
+                <stop offset="1" stop-color="#0a294b"/>
               </linearGradient>
               <radialGradient id="fluidShade" cx="35%" cy="25%" r="82%">
                 <stop offset="0" stop-color="#ffffff" stop-opacity="0.5"/>
@@ -61,6 +63,28 @@ globalThis.HAVoiceMarkup = `
                 <stop offset="0.64" stop-color="#08233f" stop-opacity="0.24"/>
                 <stop offset="1" stop-color="#08233f" stop-opacity="0"/>
               </radialGradient>
+              <radialGradient id="specularGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.72"/>
+                <stop offset="0.36" stop-color="#f4fffd" stop-opacity="0.34"/>
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="depthGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0" stop-color="#4ddfc7" stop-opacity="0.32"/>
+                <stop offset="0.58" stop-color="#1c7ca0" stop-opacity="0.12"/>
+                <stop offset="1" stop-color="#08213c" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="causticStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+                <stop offset="0.42" stop-color="#eafffb" stop-opacity="0.5"/>
+                <stop offset="0.72" stop-color="#a9f9eb" stop-opacity="0.2"/>
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="rimLight" x1="12%" y1="8%" x2="86%" y2="92%">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.7"/>
+                <stop offset="0.38" stop-color="#dffff8" stop-opacity="0.14"/>
+                <stop offset="0.7" stop-color="#7ce7d5" stop-opacity="0.08"/>
+                <stop offset="1" stop-color="#55c8e8" stop-opacity="0.52"/>
+              </linearGradient>
               <linearGradient id="auroraBase" x1="0" y1="0.35" x2="1" y2="0.65">
                 <stop offset="0" stop-color="#49e2d0"/>
                 <stop offset="0.5" stop-color="#31bdf1"/>
@@ -98,9 +122,17 @@ globalThis.HAVoiceMarkup = `
                 <ellipse class="svg-flow svg-flow-light" cx="57" cy="45" rx="105" ry="67" fill="url(#flowLight)"/>
                 <ellipse class="svg-flow svg-flow-dark" cx="142" cy="151" rx="101" ry="73" fill="url(#flowDark)"/>
                 <circle cx="100" cy="100" r="88" fill="url(#fluidShade)"/>
-                <ellipse cx="69" cy="53" rx="26" ry="13" fill="#fff" opacity="0.16" transform="rotate(-24 69 53)"/>
+                <ellipse class="svg-refraction" cx="124" cy="148" rx="73" ry="43" fill="url(#depthGlow)"/>
+                <path class="svg-caustic svg-caustic-one" d="M26 105 C55 78 84 91 111 75 C137 60 164 73 181 96"
+                  fill="none" stroke="url(#causticStroke)" stroke-width="3.1" stroke-linecap="round"/>
+                <path class="svg-caustic svg-caustic-two" d="M43 132 C70 113 101 122 124 106 C144 92 159 98 172 111"
+                  fill="none" stroke="url(#causticStroke)" stroke-width="1.7" stroke-linecap="round" opacity="0.55"/>
+                <ellipse class="svg-specular" cx="62" cy="48" rx="37" ry="25" fill="url(#specularGlow)" transform="rotate(-25 62 48)"/>
+                <path d="M38 66 C53 37 78 27 103 25" fill="none" stroke="#fff" stroke-opacity="0.24"
+                  stroke-width="2.2" stroke-linecap="round"/>
               </g>
-              <use href="#fluidShape" fill="none" stroke="#dffff7" stroke-opacity="0.28" stroke-width="1.4"/>
+              <use href="#fluidShape" fill="none" stroke="#03111f" stroke-opacity="0.4" stroke-width="3"/>
+              <use href="#fluidShape" fill="none" stroke="url(#rimLight)" stroke-width="1.5"/>
             </g>
 
             <g class="svg-design svg-aurora">
