@@ -21,17 +21,26 @@ function createVoiceApp() {
   const createNode = () => ({
     textContent: "",
     className: "",
+    value: "",
     disabled: false,
     dataset: {},
+    children: [],
     addEventListener() {},
     setAttribute() {},
-    classList: { add() {}, remove() {} },
+    appendChild(child) { this.children.push(child); },
+    replaceChildren() { this.children = []; },
+    classList: { add() {}, remove() {}, toggle() {} },
   });
   const selectors = [
     "#app", "#stateIndicator", "#stateDetail", "#assistResponse",
     "#userTranscript", "#settingsPanel", "#settingsBtn", "#backBtn",
-    "#closeSettingsBtn", "#testMicBtn", "#startOverlay", "#startBtn",
-    "#ttsSourceLabel",
+    "#closeSettingsBtn", "#micToggleBtn", "#runDiagnosticsBtn",
+    "#pipelineSetting", "#vadSetting", "#animationSetting", "#ttsSetting",
+    "#browserVoiceSetting", "#volumeSetting", "#volumeValue",
+    "#speechRateSetting", "#speechRateValue", "#startOverlay", "#startBtn",
+    "#ttsSourceLabel", "#diagMic", "#diagConnection", "#diagPipeline",
+    "#diagStt", "#diagTts", "#diagAudio", "#latencyStt",
+    "#latencyIntent", "#latencyTts",
   ];
   const nodes = Object.fromEntries(selectors.map((selector) => [selector, createNode()]));
   nodes["#frequencyRing"] = {
@@ -43,6 +52,7 @@ function createVoiceApp() {
   const root = {
     querySelector: (selector) => nodes[selector],
     addEventListener() {},
+    createElement: () => createNode(),
   };
   return { app: new VoiceAssistApp({ root }), nodes };
 }
@@ -64,6 +74,12 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.match(markup, /class="svg-specular"/);
   assert.match(markup, /class="svg-caustic svg-caustic-one"/);
   assert.match(markup, /stroke="url\(#rimLight\)"/);
+  assert.match(markup, /id="micToggleBtn"/);
+  assert.match(markup, /id="runDiagnosticsBtn"/);
+  assert.match(markup, /id="pipelineSetting"/);
+  assert.match(markup, /offizielle Home-Assistant-Widget/);
+  assert.doesNotMatch(markup, /Kurzbefehl erstellen/);
+  assert.doesNotMatch(markup, /direkt öffnen/);
   assert.doesNotMatch(orbRule, /overflow:\s*hidden/);
   assert.doesNotMatch(orbRule, /border-radius/);
 });
@@ -143,6 +159,28 @@ test("subscribes to live device configuration updates", async () => {
 
   assert.equal(received.animation_style, "aurora");
   assert.equal(received.tts_playback, "browser");
+});
+
+test("updates Home Assistant select entities through the standard service call", async () => {
+  const sent = [];
+  const pipeline = new HAVoicePipeline("https://ha.example", "token");
+  pipeline.connected = true;
+  pipeline.ws = {
+    readyState: WebSocket.OPEN,
+    send: (value) => sent.push(value),
+  };
+
+  const selecting = pipeline.selectOption("select.ha_voice_animation", "aurora");
+  const command = JSON.parse(sent.shift());
+  assert.equal(command.type, "call_service");
+  assert.equal(command.domain, "select");
+  assert.equal(command.service, "select_option");
+  assert.deepEqual(command.service_data, {
+    entity_id: "select.ha_voice_animation",
+    option: "aurora",
+  });
+  pipeline._handleMessage({ id: command.id, type: "result", success: true, result: {} });
+  await selecting;
 });
 
 test("forwards the real VAD start event separately from STT startup", () => {
@@ -296,6 +334,7 @@ test("reuses a user-activated media element for delayed iOS TTS", async () => {
   try {
     await app._playTTS("/api/tts_proxy/test.mp3");
     assert.equal(playedUrl, "blob:tts-audio");
+    assert.equal(app.ttsPlayer.volume, app.voiceVolume);
     assert.equal(fetchCount, 1);
     assert.equal(app.ttsEnded, false);
 
@@ -306,6 +345,55 @@ test("reuses a user-activated media element for delayed iOS TTS", async () => {
     URL.createObjectURL = originalCreateObjectUrl;
     URL.revokeObjectURL = originalRevokeObjectUrl;
   }
+});
+
+test("applies the selected browser voice, rate and volume", () => {
+  const { app } = createVoiceApp();
+  let utterance = null;
+  class TestUtterance {
+    constructor(text) { this.text = text; }
+  }
+  global.SpeechSynthesisUtterance = TestUtterance;
+  global.speechSynthesis = {
+    getVoices: () => [{ voiceURI: "de-premium", name: "Deutsch", lang: "de-DE" }],
+    cancel() {},
+    speak(value) { utterance = value; },
+  };
+  app.browserVoiceURI = "de-premium";
+  app.speechRate = 1.2;
+  app.voiceVolume = 0.65;
+
+  try {
+    assert.equal(app._speakWithBrowserVoice("Guten Morgen", () => {}), true);
+    assert.equal(utterance.rate, 1.2);
+    assert.equal(utterance.volume, 0.65);
+    assert.equal(utterance.voice.voiceURI, "de-premium");
+  } finally {
+    delete global.SpeechSynthesisUtterance;
+    delete global.speechSynthesis;
+  }
+});
+
+test("pauses and resumes the microphone from the visible status control", async () => {
+  const { app } = createVoiceApp();
+  let stopped = false;
+  app.audio.isRecording = true;
+  app.audio.stop = () => {
+    stopped = true;
+    app.audio.isRecording = false;
+  };
+  app.pipeline = { endAudio() {} };
+
+  await app._toggleMicrophone();
+  assert.equal(stopped, true);
+  assert.equal(app.pausedByUser, true);
+  assert.equal(app.state, "PAUSED");
+
+  let activated = false;
+  app.activate = async () => { activated = true; };
+  await app._toggleMicrophone();
+  assert.equal(activated, true);
+  assert.equal(app.pausedByUser, false);
 });
 
 test("falls back to the iPhone voice when Home Assistant TTS returns 500", async () => {
@@ -365,4 +453,29 @@ test("applies animation and TTS settings supplied by the device", () => {
     assert.equal(app.animationStyle, style);
     assert.match(nodes["#app"].className, new RegExp(`animation-${style}`));
   }
+});
+
+test("renders live Home Assistant configuration as direct settings", () => {
+  const { app, nodes } = createVoiceApp();
+  app._applyRunConfiguration({
+    animation_style: "aurora",
+    tts_playback: "browser",
+    selects: {
+      pipeline: {
+        entity_id: "select.ha_voice_pipeline",
+        value: "preferred",
+        options: ["preferred", "default"],
+      },
+      animation_style: {
+        entity_id: "select.ha_voice_animation",
+        value: "aurora",
+        options: ["orb", "aurora"],
+      },
+    },
+  });
+
+  assert.equal(nodes["#pipelineSetting"].value, "preferred");
+  assert.equal(nodes["#pipelineSetting"].children.length, 2);
+  assert.equal(nodes["#animationSetting"].value, "aurora");
+  assert.equal(nodes["#diagPipeline"].dataset.status, "ok");
 });

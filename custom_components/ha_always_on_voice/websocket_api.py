@@ -42,12 +42,34 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, websocket_subscribe_config)
 
 
-def _frontend_configuration(satellite) -> dict:
+def _select_configuration(hass: HomeAssistant, entity_id: str | None) -> dict:
+    """Describe a Home Assistant select for the browser settings panel."""
+    state = hass.states.get(entity_id) if entity_id else None
+    return {
+        "entity_id": entity_id,
+        "value": state.state if state else None,
+        "options": list(state.attributes.get("options", [])) if state else [],
+    }
+
+
+def _frontend_configuration(hass: HomeAssistant, satellite) -> dict:
     """Return the configuration consumed by the browser UI."""
     return {
         "animation_style": satellite.animation_style,
         "tts_playback": satellite.tts_playback,
         "tts_engine": satellite.tts_engine,
+        "selects": {
+            "pipeline": _select_configuration(hass, satellite.pipeline_entity_id),
+            "vad_sensitivity": _select_configuration(
+                hass, satellite.vad_sensitivity_entity_id
+            ),
+            "animation_style": _select_configuration(
+                hass, satellite.config_entity_id("animation_style")
+            ),
+            "tts_playback": _select_configuration(
+                hass, satellite.config_entity_id("tts_playback")
+            ),
+        },
     }
 
 
@@ -68,6 +90,7 @@ async def websocket_subscribe_config(
 
     watched_entity_ids = {
         satellite.pipeline_entity_id,
+        satellite.vad_sensitivity_entity_id,
         satellite.config_entity_id("animation_style"),
         satellite.config_entity_id("tts_playback"),
     }
@@ -76,12 +99,12 @@ async def websocket_subscribe_config(
     @callback
     def forward_configuration(event: Event) -> None:
         if event.data.get("entity_id") in watched_entity_ids:
-            connection.send_event(msg["id"], _frontend_configuration(satellite))
+            connection.send_event(msg["id"], _frontend_configuration(hass, satellite))
 
     unsubscribe = hass.bus.async_listen(EVENT_STATE_CHANGED, forward_configuration)
     connection.subscriptions[msg["id"]] = unsubscribe
     connection.send_result(msg["id"])
-    connection.send_event(msg["id"], _frontend_configuration(satellite))
+    connection.send_event(msg["id"], _frontend_configuration(hass, satellite))
 
 
 @websocket_api.websocket_command({vol.Required("type"): WS_TYPE_TTS_FINISHED})
@@ -155,7 +178,10 @@ async def websocket_run(
 
     connection.send_result(
         msg["id"],
-        {"stt_binary_handler_id": handler_id, **_frontend_configuration(satellite)},
+        {
+            "stt_binary_handler_id": handler_id,
+            **_frontend_configuration(hass, satellite),
+        },
     )
 
     run_task = hass.async_create_task(

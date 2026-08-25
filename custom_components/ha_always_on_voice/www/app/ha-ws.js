@@ -191,11 +191,29 @@ class HAVoicePipeline {
     return this._waitForResult(id);
   }
 
+  selectOption(entityId, option) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.connected) {
+      return Promise.reject(new Error("Home Assistant ist nicht verbunden."));
+    }
+    if (!entityId || !option) {
+      return Promise.reject(new Error("Ungültige Auswahl."));
+    }
+    const id = this.msgId++;
+    this.ws.send(JSON.stringify({
+      id,
+      type: "call_service",
+      domain: "select",
+      service: "select_option",
+      service_data: { entity_id: entityId, option },
+    }));
+    return this._waitForResult(id);
+  }
+
   _waitForResult(id) {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this.pendingCommands.delete(id);
-        reject(new Error("Home Assistant hat den Audio-Stream nicht bestätigt."));
+        reject(new Error("Home Assistant hat die Anfrage nicht bestätigt."));
       }, 10000);
       this.pendingCommands.set(id, { resolve, reject, timeoutId });
     });

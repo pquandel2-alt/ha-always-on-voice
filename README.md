@@ -14,8 +14,12 @@ command or using a wake word.
 - Audio-reactive interface designed for the Home Assistant iOS app
 - Persistent response text that remains visible until the next spoken request
 - Automatic iPhone system-voice fallback if Home Assistant TTS fails
-- iPhone widget/deep-link guidance for one-tap access
-- Native back navigation and an in-panel iOS Shortcut creator
+- Direct in-panel controls for pipeline, VAD, animation, and voice output
+- Configurable browser voice, volume, and speech rate
+- One-tap microphone pause, background power saving, and haptic feedback
+- System diagnostics and STT, response, and TTS latency measurements
+- Official Home Assistant iPhone widget guidance for one-tap access
+- Native back navigation
 - Bundled HA Voice Control integration icon on Home Assistant 2026.3 and newer
 - Automatic recovery after WebSocket interruptions
 - No frontend build step
@@ -57,7 +61,7 @@ Microphone permission must also be enabled for Home Assistant under iOS
 ## Configuration
 
 Pipeline, finished-speaking sensitivity, browser TTS playback, and animation
-style are configured on the generated device:
+style can be configured directly in the panel or on the generated device:
 
 **Settings → Voice assistants → Devices → HA Voice Control**
 
@@ -77,31 +81,28 @@ Six animation styles are available: **Fluid orb**, **Audio spectrum**,
 **Aurora flow**, **Pulse rings**, **Constellation**, and **Minimal**. Changes to
 the animation selector are pushed to an open HA Voice Control panel immediately.
 
+The panel also lets each phone choose its browser voice, output volume, and
+speech rate. These three settings are stored locally on that device. The system
+check reports microphone permission, WebSocket connection, pipeline, STT, TTS,
+audio readiness, and the most recent processing times.
+
 Home Assistant 2026.3 and newer loads the bundled integration symbol directly
 from `custom_components/ha_always_on_voice/brand/`. On older versions, Home
 Assistant may continue to show its generic missing-logo placeholder even though
 the integration itself remains functional.
 
-## iPhone widget and shortcuts
+## iPhone widget
 
-The panel settings include **Create Shortcut**, which opens Apple's new-shortcut
-editor. On iOS 18 or newer, add the action **Home Assistant → Open Page**, select
-**HA Voice Control**, then use the shortcut details to choose **Add to Home Screen**.
-
-The official Home Assistant iOS app also supplies an **Open Page** widget. Add
-that widget on the Home Screen or Lock Screen and select **HA Voice Control** as its
-page. The panel includes this direct app link as a fallback:
-
-`homeassistant://navigate/ha_always_on_voice?server=default`
-
-The same link can be placed in an iOS Shortcut or on the Home Screen. A custom
-integration cannot install its own native iOS widget; the official Companion
-App widget is therefore the supported route.
+Use the official Home Assistant **Open Page** widget on the Home Screen or Lock
+Screen and select **HA Voice Control** as its page. This is the direct supported
+route and does not require an additional shortcut or a duplicate open button in
+the panel. A custom integration cannot install its own native iOS widget.
 
 iOS suspends web content and microphone capture when the app is closed or in
-the background. HA Voice Control can listen continuously while its panel is open
-in the foreground, but cannot provide a system-wide, always-listening wake word
-on a locked iPhone.
+the background. HA Voice Control pauses its microphone and animation when the
+panel moves to the background and resumes on return. It can listen continuously
+while its panel is open in the foreground, but cannot provide a system-wide,
+always-listening wake word on a locked iPhone.
 
 ## Architecture
 
@@ -146,7 +147,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 0.9.3 uses network-first service-worker caching. Reload Home Assistant or
+Version 1.0.0 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

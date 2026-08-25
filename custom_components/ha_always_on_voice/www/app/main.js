@@ -34,6 +34,19 @@ class VoiceAssistApp {
     this.ttsText = "";
     this.persistentNotice = null;
     this.smoothedLevels = new Float32Array(72);
+    this.pausedByUser = false;
+    this.pausedForBackground = false;
+    this.resumeAfterVisibility = false;
+    this.deviceSelects = {};
+    this.voiceVolume = 1;
+    this.speechRate = 1;
+    this.browserVoiceURI = "";
+    this.metrics = {
+      vadStart: null,
+      sttEnd: null,
+      intentStart: null,
+      ttsStart: null,
+    };
 
     this.container = root.querySelector("#app");
     this.stateIndicator = root.querySelector("#stateIndicator");
@@ -44,15 +57,28 @@ class VoiceAssistApp {
     this.backBtn = root.querySelector("#backBtn");
     this.settingsBtn = root.querySelector("#settingsBtn");
     this.closeSettingsBtn = root.querySelector("#closeSettingsBtn");
-    this.testMicBtn = root.querySelector("#testMicBtn");
+    this.micToggleBtn = root.querySelector("#micToggleBtn");
+    this.runDiagnosticsBtn = root.querySelector("#runDiagnosticsBtn");
+    this.pipelineSetting = root.querySelector("#pipelineSetting");
+    this.vadSetting = root.querySelector("#vadSetting");
+    this.animationSetting = root.querySelector("#animationSetting");
+    this.ttsSetting = root.querySelector("#ttsSetting");
+    this.browserVoiceSetting = root.querySelector("#browserVoiceSetting");
+    this.volumeSetting = root.querySelector("#volumeSetting");
+    this.volumeValue = root.querySelector("#volumeValue");
+    this.speechRateSetting = root.querySelector("#speechRateSetting");
+    this.speechRateValue = root.querySelector("#speechRateValue");
     this.startOverlay = root.querySelector("#startOverlay");
     this.startBtn = root.querySelector("#startBtn");
     this.ttsPlayer = root.querySelector("#ttsPlayer");
     this.ttsSourceLabel = root.querySelector("#ttsSourceLabel");
     this.frequencyCanvas = root.querySelector("#frequencyRing");
+    this.voiceCore = root.querySelector(".voice-core-svg");
     this.canvasCtx = this.frequencyCanvas.getContext("2d");
 
     if (!this.container) throw new Error("HA Voice Control UI wurde nicht gefunden.");
+    this._loadLocalSettings();
+    this._populateBrowserVoices();
     this._setupEventListeners();
     this._setupLegacyAuthListener();
   }
@@ -66,7 +92,36 @@ class VoiceAssistApp {
       this.settingsPanel.setAttribute("aria-hidden", "false");
     });
     this.closeSettingsBtn.addEventListener("click", () => this._closeSettings());
-    this.testMicBtn.addEventListener("click", () => this._testMicrophone());
+    this.micToggleBtn?.addEventListener("click", () => this._toggleMicrophone());
+    this.runDiagnosticsBtn?.addEventListener("click", () => this._runDiagnostics());
+    const settingMap = [
+      [this.pipelineSetting, "pipeline"],
+      [this.vadSetting, "vad_sensitivity"],
+      [this.animationSetting, "animation_style"],
+      [this.ttsSetting, "tts_playback"],
+    ];
+    for (const [element, key] of settingMap) {
+      element?.addEventListener("change", () => this._updateDeviceSelect(key, element));
+    }
+    this.browserVoiceSetting?.addEventListener("change", () => {
+      this.browserVoiceURI = this.browserVoiceSetting.value;
+      this._saveLocalSettings();
+    });
+    this.volumeSetting?.addEventListener("input", () => {
+      this.voiceVolume = Number(this.volumeSetting.value) / 100;
+      this.volumeValue.textContent = `${Math.round(this.voiceVolume * 100)} %`;
+      if (this.ttsPlayer) this.ttsPlayer.volume = this.voiceVolume;
+      this._saveLocalSettings();
+    });
+    this.speechRateSetting?.addEventListener("input", () => {
+      this.speechRate = Number(this.speechRateSetting.value);
+      this.speechRateValue.textContent = `${this.speechRate.toFixed(1).replace(".", ",")}×`;
+      this._saveLocalSettings();
+    });
+    this.visibilityHandler = () => this._handleVisibilityChange();
+    globalThis.document?.addEventListener?.("visibilitychange", this.visibilityHandler);
+    const synth = globalThis.speechSynthesis || globalThis.window?.speechSynthesis;
+    synth?.addEventListener?.("voiceschanged", () => this._populateBrowserVoices());
     this.root.addEventListener?.("keydown", (event) => {
       if (event.key === "Escape") this._closeSettings();
     });
@@ -89,6 +144,266 @@ class VoiceAssistApp {
     this.latestToken = token;
     this.latestHassUrl = hassUrl || window.location.origin;
     if (this.pipeline) this.pipeline.accessToken = token;
+  }
+
+  _loadLocalSettings() {
+    try {
+      const storage = globalThis.localStorage;
+      this.voiceVolume = Math.min(1, Math.max(0, Number(storage?.getItem("ha_voice_control_volume") ?? 1)));
+      this.speechRate = Math.min(1.3, Math.max(0.7, Number(storage?.getItem("ha_voice_control_rate") ?? 1)));
+      this.browserVoiceURI = storage?.getItem("ha_voice_control_voice") || "";
+    } catch (_error) {
+      // Private browsing or an embedded webview may reject local storage.
+    }
+    if (this.volumeSetting) this.volumeSetting.value = String(Math.round(this.voiceVolume * 100));
+    if (this.volumeValue) this.volumeValue.textContent = `${Math.round(this.voiceVolume * 100)} %`;
+    if (this.speechRateSetting) this.speechRateSetting.value = String(this.speechRate);
+    if (this.speechRateValue) {
+      this.speechRateValue.textContent = `${this.speechRate.toFixed(1).replace(".", ",")}×`;
+    }
+  }
+
+  _saveLocalSettings() {
+    try {
+      globalThis.localStorage?.setItem("ha_voice_control_volume", String(this.voiceVolume));
+      globalThis.localStorage?.setItem("ha_voice_control_rate", String(this.speechRate));
+      globalThis.localStorage?.setItem("ha_voice_control_voice", this.browserVoiceURI);
+    } catch (_error) {
+      // Settings remain active for the current session.
+    }
+  }
+
+  _populateBrowserVoices() {
+    if (!this.browserVoiceSetting) return;
+    const synth = globalThis.speechSynthesis || globalThis.window?.speechSynthesis;
+    const voices = synth?.getVoices?.() || [];
+    const selected = this.browserVoiceURI;
+    this.browserVoiceSetting.replaceChildren?.();
+    const defaultOption = this.root.createElement?.("option") || globalThis.document?.createElement?.("option");
+    if (defaultOption) {
+      defaultOption.value = "";
+      defaultOption.textContent = "Systemstandard";
+      this.browserVoiceSetting.appendChild(defaultOption);
+    }
+    for (const voice of [...voices].sort((a, b) => a.name.localeCompare(b.name))) {
+      const option = this.root.createElement?.("option") || globalThis.document?.createElement?.("option");
+      if (!option) continue;
+      option.value = voice.voiceURI;
+      option.textContent = `${voice.name} (${voice.lang})`;
+      this.browserVoiceSetting.appendChild(option);
+    }
+    this.browserVoiceSetting.value = voices.some((voice) => voice.voiceURI === selected)
+      ? selected
+      : "";
+  }
+
+  async _updateDeviceSelect(key, element) {
+    const config = this.deviceSelects[key];
+    if (!config?.entity_id || !element?.value) return;
+    element.disabled = true;
+    try {
+      await this.pipeline?.selectOption(config.entity_id, element.value);
+      this._haptic("selection");
+    } catch (error) {
+      element.value = config.value || "";
+      this._updateStateUI("Einstellung fehlgeschlagen", error.message || "Auswahl konnte nicht gespeichert werden");
+    } finally {
+      element.disabled = false;
+    }
+  }
+
+  _renderDeviceSettings(selects = {}) {
+    this.deviceSelects = selects;
+    const controls = {
+      pipeline: this.pipelineSetting,
+      vad_sensitivity: this.vadSetting,
+      animation_style: this.animationSetting,
+      tts_playback: this.ttsSetting,
+    };
+    const labels = {
+      preferred: "Bevorzugt",
+      default: "Standard",
+      aggressive: "Aggressiv",
+      relaxed: "Entspannt",
+      orb: "Realistische Liquid-Kugel",
+      spectrum: "Audio-Spektrum",
+      aurora: "Aurora-Fluss",
+      pulse: "Puls-Ringe",
+      constellation: "Sternbild",
+      minimal: "Minimalistisch",
+      pipeline: "Aus Assist-Pipeline",
+      browser: "iPhone-/Browser-Stimme",
+      muted: "Stumm",
+    };
+    for (const [key, element] of Object.entries(controls)) {
+      if (!element) continue;
+      const config = selects[key] || {};
+      element.replaceChildren?.();
+      for (const value of config.options || []) {
+        const option = this.root.createElement?.("option") || globalThis.document?.createElement?.("option");
+        if (!option) continue;
+        option.value = value;
+        option.textContent = labels[value] || value;
+        element.appendChild(option);
+      }
+      element.value = config.value || "";
+      element.disabled = !config.entity_id || !(config.options || []).length;
+    }
+  }
+
+  _haptic(type = "light") {
+    try {
+      const event = new CustomEvent("haptic", {
+        detail: type,
+        bubbles: true,
+        composed: true,
+      });
+      this.container.dispatchEvent?.(event);
+    } catch (_error) {
+      // CustomEvent is unavailable in a few test and legacy environments.
+    }
+    globalThis.navigator?.vibrate?.(type === "success" ? [12, 35, 18] : 12);
+  }
+
+  _setDiagnostic(id, text, status = "neutral") {
+    const element = this.root.querySelector?.(`#${id}`);
+    if (!element) return;
+    element.textContent = text;
+    element.dataset.status = status;
+  }
+
+  _setLatency(id, startedAt, endedAt = this._now()) {
+    const element = this.root.querySelector?.(`#${id}`);
+    if (!element || !startedAt) return;
+    element.textContent = `${Math.max(0, Math.round(endedAt - startedAt))} ms`;
+  }
+
+  _now() {
+    return globalThis.performance?.now?.() ?? Date.now();
+  }
+
+  _syncMicToggle() {
+    if (!this.micToggleBtn) return;
+    const paused = !this.audio.isRecording;
+    this.micToggleBtn.classList.toggle?.("paused", paused);
+    this.micToggleBtn.setAttribute(
+      "aria-label",
+      paused ? "Mikrofon fortsetzen" : "Mikrofon pausieren"
+    );
+    this.micToggleBtn.setAttribute(
+      "title",
+      paused ? "Mikrofon fortsetzen" : "Mikrofon pausieren"
+    );
+  }
+
+  async _toggleMicrophone() {
+    if (this.starting) return;
+    if (this.audio.isRecording) {
+      this._pauseListening();
+      return;
+    }
+    this.pausedByUser = false;
+    this.pausedForBackground = false;
+    this.resumeAfterVisibility = false;
+    this._haptic("light");
+    await this.activate();
+  }
+
+  _pauseListening({ background = false } = {}) {
+    clearTimeout(this.restartTimer);
+    clearTimeout(this.pipelineRefreshTimer);
+    this.restartTimer = null;
+    this.pipeline?.endAudio();
+    this.audio.stop();
+    this._stopVisualization();
+    this.voiceCore?.pauseAnimations?.();
+    if (background) {
+      this.pausedForBackground = true;
+      this.resumeAfterVisibility = this.userActivated && !this.pausedByUser;
+      this._updateStateUI("Im Hintergrund pausiert", "Mikrofon und Animation sind angehalten");
+    } else {
+      this.pausedByUser = true;
+      this.userActivated = false;
+      this.resumeAfterVisibility = false;
+      this._updateStateUI("Mikrofon pausiert", "Tippe auf das Mikrofon, um fortzufahren");
+      this._haptic("selection");
+    }
+    this._setState("PAUSED");
+    this._setDiagnostic("diagMic", background ? "Hintergrundpause" : "Pausiert", "warn");
+    this._syncMicToggle();
+  }
+
+  _handleVisibilityChange() {
+    const hidden = globalThis.document?.visibilityState === "hidden";
+    if (hidden && this.audio.isRecording) {
+      this._pauseListening({ background: true });
+      return;
+    }
+    if (!hidden && this.resumeAfterVisibility && !this.pausedByUser) {
+      this.resumeAfterVisibility = false;
+      this.pausedForBackground = false;
+      this.activate({ automatic: true });
+    }
+  }
+
+  async _runDiagnostics() {
+    if (!this.runDiagnosticsBtn) return;
+    const original = this.runDiagnosticsBtn.textContent;
+    this.runDiagnosticsBtn.disabled = true;
+    this.runDiagnosticsBtn.textContent = "System wird geprüft …";
+    this._setDiagnostic(
+      "diagConnection",
+      this.pipeline?.connected ? "Verbunden" : "Nicht verbunden",
+      this.pipeline?.connected ? "ok" : "error"
+    );
+
+    try {
+      const supportError = globalThis.AudioCapture.getSupportError();
+      if (supportError) throw supportError;
+      if (this.audio.isRecording) {
+        this._setDiagnostic("diagMic", "Aktiv", "ok");
+      } else {
+        const stream = await globalThis.navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+        this._setDiagnostic("diagMic", "Berechtigung erteilt", "ok");
+      }
+    } catch (error) {
+      this._setDiagnostic("diagMic", error.message || "Nicht verfügbar", "error");
+    }
+
+    const pipelineConfig = this.deviceSelects.pipeline;
+    this._setDiagnostic(
+      "diagPipeline",
+      pipelineConfig?.value || "Nicht ausgewählt",
+      pipelineConfig?.value ? "ok" : "error"
+    );
+    this._setDiagnostic(
+      "diagStt",
+      this.metrics.sttEnd ? "Letzter Lauf erfolgreich" : "Bereit – noch nicht verwendet",
+      this.metrics.sttEnd ? "ok" : "neutral"
+    );
+    const ttsDescription = this.ttsPlayback === "muted"
+      ? "Stummgeschaltet"
+      : (this.ttsPlayback === "browser" ? "iPhone-/Browser-Stimme" : this.ttsEngine);
+    this._setDiagnostic(
+      "diagTts",
+      ttsDescription || "Nicht konfiguriert",
+      ttsDescription ? (this.ttsPlayback === "muted" ? "warn" : "ok") : "error"
+    );
+    const audioReady = Boolean(
+      this.audio.audioContext && this.audio.audioContext.state !== "closed"
+    ) || this.ttsPlayer?.dataset?.primed === "true";
+    this._setDiagnostic(
+      "diagAudio",
+      audioReady ? "Wiedergabe bereit" : "Wird beim ersten Start aktiviert",
+      audioReady ? "ok" : "neutral"
+    );
+    this.runDiagnosticsBtn.textContent = "Systemcheck abgeschlossen ✓";
+    this._haptic("success");
+    setTimeout(() => {
+      this.runDiagnosticsBtn.textContent = original;
+      this.runDiagnosticsBtn.disabled = false;
+    }, 2200);
   }
 
   async init() {
@@ -128,7 +443,12 @@ class VoiceAssistApp {
       if (!this.pipeline?.connected) await this._connectPipeline();
       if (!this.audio.isRecording) await this.audio.start();
       this.userActivated = true;
+      this.pausedByUser = false;
+      this.pausedForBackground = false;
+      this.voiceCore?.unpauseAnimations?.();
       this.startOverlay.classList.remove("visible");
+      this._syncMicToggle();
+      this._setDiagnostic("diagMic", "Aktiv", "ok");
       await this._startListening();
     } catch (error) {
       if (automatic && !this.audio.isRecording) {
@@ -166,6 +486,7 @@ class VoiceAssistApp {
     this.pipeline.onError = (error) => this._handleError(error, { recoverable: true });
     await this.pipeline.connect();
     await this.pipeline.subscribeConfiguration();
+    this._setDiagnostic("diagConnection", "Verbunden", "ok");
   }
 
   async _getAuth() {
@@ -233,33 +554,47 @@ class VoiceAssistApp {
     // user actually starts a new request.
     this.assistResponse.textContent = "";
     this.userTranscript.textContent = "";
+    this.metrics.vadStart = this._now();
+    this.metrics.sttEnd = null;
+    this.metrics.intentStart = null;
+    this.metrics.ttsStart = null;
     this._setState("HEARING");
     this._updateStateUI("Ich höre dich", "Sprich deinen Satz zu Ende");
+    this._setDiagnostic("diagStt", "Sprache erkannt", "ok");
+    this._haptic("light");
   }
 
   _onSttEnd(data) {
     const transcript = data.transcript?.trim() || "";
+    this.metrics.sttEnd = this._now();
+    this._setLatency("latencyStt", this.metrics.vadStart, this.metrics.sttEnd);
+    this._setDiagnostic("diagStt", transcript ? "Erfolgreich" : "Ohne Text", transcript ? "ok" : "warn");
     this.userTranscript.textContent = transcript ? `„${transcript}“` : "";
     this.pipeline?.endAudio();
   }
 
   _onIntentStart() {
+    this.metrics.intentStart = this._now();
     this._setState("PROCESSING");
     this._updateStateUI("Wird verarbeitet", "Home Assistant denkt nach …");
   }
 
   _onIntentEnd(data) {
     this.assistResponse.textContent = data.responseText || "";
+    this._setLatency("latencyIntent", this.metrics.intentStart);
   }
 
   _onTtsStart(data = {}) {
     this.ttsWasRequested = true;
+    this.metrics.ttsStart = this._now();
     this.ttsText = data.text?.trim() || this.assistResponse.textContent;
     this._setState("SPEAKING");
     this._updateStateUI("Antwort", "Home Assistant spricht");
   }
 
   _onTtsEnd(data) {
+    this._setLatency("latencyTts", this.metrics.ttsStart);
+    this._setDiagnostic("diagAudio", "Wiedergabe gestartet", "ok");
     if (this.ttsPlayback === "muted") {
       this.ttsEnded = true;
       this.pipeline?.notifyTtsFinished();
@@ -312,6 +647,8 @@ class VoiceAssistApp {
       this.currentTtsPlaybackId = null;
       this.ttsEnded = true;
       this.pipeline?.notifyTtsFinished();
+      this._setDiagnostic("diagAudio", "Wiedergabe erfolgreich", "ok");
+      this._haptic("success");
       if (this.runEnded) this._scheduleNextListening();
     };
 
@@ -348,7 +685,7 @@ class VoiceAssistApp {
             });
           }
         };
-        this.ttsPlayer.volume = 1;
+        this.ttsPlayer.volume = this.voiceVolume;
         this.currentTtsObjectUrl = URL.createObjectURL(new Blob(
           [audioData.arrayBuffer],
           { type: audioData.contentType }
@@ -407,8 +744,15 @@ class VoiceAssistApp {
 
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(this.audio.analyser);
-    source.connect(context.destination);
+    if (this.audio.analyser) source.connect(this.audio.analyser);
+    if (context.createGain) {
+      const gain = context.createGain();
+      gain.gain.value = this.voiceVolume;
+      source.connect(gain);
+      gain.connect(context.destination);
+    } else {
+      source.connect(context.destination);
+    }
     source.onended = finish;
     this.currentTtsSource = source;
     source.start(0);
@@ -441,6 +785,8 @@ class VoiceAssistApp {
       this.currentTtsPlaybackId = null;
       this.ttsEnded = true;
       this.pipeline?.notifyTtsFinished();
+      this._setDiagnostic("diagAudio", "Wiedergabe erfolgreich", "ok");
+      this._haptic("success");
       if (this.runEnded) this._scheduleNextListening();
     };
     if (this._speakWithBrowserVoice(text, finish)) {
@@ -460,7 +806,12 @@ class VoiceAssistApp {
     try {
       const utterance = new Utterance(text.trim());
       utterance.lang = globalThis.navigator?.language || "de-DE";
-      utterance.rate = 1;
+      utterance.rate = this.speechRate;
+      utterance.volume = this.voiceVolume;
+      const selectedVoice = synth.getVoices?.().find(
+        (voice) => voice.voiceURI === this.browserVoiceURI
+      );
+      if (selectedVoice) utterance.voice = selectedVoice;
       utterance.onend = finish;
       utterance.onerror = (event) => {
         this.persistentNotice = `TTS-Fehler: iPhone-Stimme fehlgeschlagen (${event.error || "unbekannt"})`;
@@ -510,7 +861,7 @@ class VoiceAssistApp {
     this.ttsPlayer.play().then(() => {
       this.ttsPlayer.pause();
       this.ttsPlayer.dataset.primed = "true";
-      this.ttsPlayer.volume = 1;
+      this.ttsPlayer.volume = this.voiceVolume;
       URL.revokeObjectURL(objectUrl);
     }).catch((error) => {
       console.debug("TTS player priming was not accepted", error);
@@ -542,11 +893,26 @@ class VoiceAssistApp {
           ? "iPhone-/Browser-Stimme"
           : (this.ttsEngine || "Nicht konfiguriert"));
     }
+    this._renderDeviceSettings(config.selects || this.deviceSelects);
+    const pipelineName = this.deviceSelects.pipeline?.value;
+    this._setDiagnostic(
+      "diagPipeline",
+      pipelineName || "Nicht ausgewählt",
+      pipelineName ? "ok" : "error"
+    );
+    const ttsName = this.ttsPlayback === "muted"
+      ? "Stummgeschaltet"
+      : (this.ttsPlayback === "browser" ? "iPhone-/Browser-Stimme" : this.ttsEngine);
+    this._setDiagnostic(
+      "diagTts",
+      ttsName || "Nicht konfiguriert",
+      ttsName ? (this.ttsPlayback === "muted" ? "warn" : "ok") : "error"
+    );
     this._setState(this.state);
   }
 
   _scheduleNextListening() {
-    if (this.restartTimer || this.destroyed) return;
+    if (this.restartTimer || this.destroyed || this.pausedByUser || this.pausedForBackground) return;
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
       this._startListening().catch((error) => {
@@ -579,6 +945,7 @@ class VoiceAssistApp {
     this.ttsEnded = true;
     this._setState("ERROR");
     this._updateStateUI("Verbindung unterbrochen", normalized.message);
+    this._setDiagnostic("diagConnection", "Fehler", "error");
     this._stopVisualization();
     this.pipeline?.endAudio();
 
@@ -699,29 +1066,6 @@ class VoiceAssistApp {
     ctx.globalAlpha = 1;
   }
 
-  async _testMicrophone() {
-    this.testMicBtn.disabled = true;
-    const original = this.testMicBtn.textContent;
-    try {
-      if (this.audio.isRecording) {
-        this.testMicBtn.textContent = "Mikrofon ist aktiv ✓";
-      } else {
-        const supportError = globalThis.AudioCapture.getSupportError();
-        if (supportError) throw supportError;
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-        this.testMicBtn.textContent = "Mikrofon funktioniert ✓";
-      }
-    } catch (error) {
-      this.testMicBtn.textContent = error.message || "Mikrofontest fehlgeschlagen";
-    } finally {
-      setTimeout(() => {
-        this.testMicBtn.textContent = original;
-        this.testMicBtn.disabled = false;
-      }, 2400);
-    }
-  }
-
   _showStartButton(label) {
     this.startBtn.textContent = label;
     this.startOverlay.classList.add("visible");
@@ -743,6 +1087,7 @@ class VoiceAssistApp {
   _setState(state) {
     this.state = state;
     this.container.className = `state-${state.toLowerCase()} animation-${this.animationStyle}`;
+    this._syncMicToggle();
   }
 
   _updateStateUI(title, detail = "") {
@@ -752,6 +1097,7 @@ class VoiceAssistApp {
 
   destroy() {
     this.destroyed = true;
+    globalThis.document?.removeEventListener?.("visibilitychange", this.visibilityHandler);
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.restartTimer);
     clearTimeout(this.pipelineRefreshTimer);

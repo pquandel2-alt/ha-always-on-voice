@@ -173,10 +173,16 @@ globalThis.HAVoiceMarkup = `
 
       <section class="status-card" aria-live="polite">
         <span class="status-dot" aria-hidden="true"></span>
-        <div>
+        <div class="status-copy">
           <p class="state-indicator" id="stateIndicator">Initialisieren</p>
           <p class="state-detail" id="stateDetail">HA Voice Control wird vorbereitet …</p>
         </div>
+        <button class="mic-toggle-btn" id="micToggleBtn" type="button" aria-label="Mikrofon pausieren">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3M9 22h6"/>
+          </svg>
+        </button>
       </section>
     </main>
 
@@ -191,11 +197,23 @@ globalThis.HAVoiceMarkup = `
       </div>
       <div class="settings-content">
         <section class="settings-section">
-          <h3>Sprachausgabe und Design</h3>
-          <p class="settings-hint">
-            Assist-Pipeline, Erkennungsdauer, TTS-Wiedergabe und Animation stellst
-            du am Gerät HA Voice Control unter Geräte &amp; Dienste ein.
-          </p>
+          <h3>Assist und Darstellung</h3>
+          <label class="setting-field">
+            <span>Assist-Pipeline</span>
+            <select id="pipelineSetting"></select>
+          </label>
+          <label class="setting-field">
+            <span>Ende der Spracheingabe</span>
+            <select id="vadSetting"></select>
+          </label>
+          <label class="setting-field">
+            <span>Animation</span>
+            <select id="animationSetting"></select>
+          </label>
+          <label class="setting-field">
+            <span>Sprachausgabe</span>
+            <select id="ttsSetting"></select>
+          </label>
           <div class="settings-info-row">
             <span>TTS-Quelle der Pipeline</span>
             <strong id="ttsSourceLabel">Wird ermittelt …</strong>
@@ -205,28 +223,45 @@ globalThis.HAVoiceMarkup = `
           </a>
         </section>
         <section class="settings-section">
+          <h3>iPhone-/Browser-Stimme</h3>
+          <label class="setting-field">
+            <span>Stimme</span>
+            <select id="browserVoiceSetting"><option value="">Systemstandard</option></select>
+          </label>
+          <label class="setting-field setting-range">
+            <span>Lautstärke <strong id="volumeValue">100 %</strong></span>
+            <input id="volumeSetting" type="range" min="0" max="100" step="5" value="100">
+          </label>
+          <label class="setting-field setting-range">
+            <span>Sprechgeschwindigkeit <strong id="speechRateValue">1,0×</strong></span>
+            <input id="speechRateSetting" type="range" min="0.7" max="1.3" step="0.1" value="1">
+          </label>
+        </section>
+        <section class="settings-section diagnostics-section">
+          <h3>Systemdiagnose</h3>
+          <div class="diagnostic-grid">
+            <span>Mikrofon</span><strong id="diagMic">Prüfung ausstehend</strong>
+            <span>Verbindung</span><strong id="diagConnection">Wird verbunden</strong>
+            <span>Assist-Pipeline</span><strong id="diagPipeline">Wird ermittelt</strong>
+            <span>Spracherkennung</span><strong id="diagStt">Noch nicht verwendet</strong>
+            <span>TTS-Anbieter</span><strong id="diagTts">Wird ermittelt</strong>
+            <span>Audioausgabe</span><strong id="diagAudio">Prüfung ausstehend</strong>
+          </div>
+          <div class="latency-grid" aria-label="Letzte Laufzeiten">
+            <div><span>STT</span><strong id="latencyStt">–</strong></div>
+            <div><span>Antwort</span><strong id="latencyIntent">–</strong></div>
+            <div><span>TTS</span><strong id="latencyTts">–</strong></div>
+          </div>
+          <button id="runDiagnosticsBtn" type="button">Systemcheck starten</button>
+        </section>
+        <section class="settings-section quick-access-note">
           <h3>iPhone-Schnellzugriff</h3>
           <p class="settings-hint">
-            Erstelle einen iOS-Kurzbefehl mit der Aktion
-            <strong>Home Assistant → Seite öffnen → HA Voice Control</strong>.
-            Öffne danach die Kurzbefehl-Details und wähle
-            <strong>Zum Home-Bildschirm</strong>.
+            Nutze das offizielle Home-Assistant-Widget <strong>„Seite öffnen“</strong>
+            und wähle <strong>HA Voice Control</strong>. Ein zusätzlicher Kurzbefehl
+            oder Direktlink ist nicht erforderlich.
           </p>
-          <ol class="shortcut-steps">
-            <li>„Kurzbefehl erstellen“ öffnen</li>
-            <li>Home Assistant → Seite öffnen wählen</li>
-            <li>HA Voice Control auswählen und zum Home-Bildschirm hinzufügen</li>
-          </ol>
-          <a class="settings-link settings-link-primary" id="createShortcutBtn"
-             href="shortcuts://create-shortcut">
-            Kurzbefehl erstellen
-          </a>
-          <a class="settings-link settings-link-secondary"
-             href="homeassistant://navigate/ha_always_on_voice?server=default">
-            HA Voice Control direkt öffnen
-          </a>
         </section>
-        <button id="testMicBtn" type="button">Mikrofon testen</button>
       </div>
     </aside>
   </div>

@@ -69,19 +69,22 @@ the panel's top-level document instead of an iframe.
 ### Background and foreground
 
 1. Put the Companion App in the background and return.
-2. If iOS suspended the audio context, reopen the panel and tap the microphone
-   button again.
+2. Confirm the microphone and animation pause in the background and listening
+   resumes automatically after returning.
 3. Locking the screen is expected to suspend browser audio; background listening
    is not supported by iOS web content.
 
 ### Settings sheet
 
 1. Open the settings button in the upper-right corner.
-2. Run **Mikrofon testen**.
-3. Verify the selected TTS source and iPhone quick-access instructions appear.
-4. Tap **Kurzbefehl erstellen** and confirm iOS opens a new shortcut editor.
-5. Change the device animation selector between Orb, Spectrum, and Minimal,
-   begin a new run, and confirm the selected design is rendered.
+2. Run **Systemcheck starten** and verify microphone, connection, pipeline,
+   STT, TTS, and audio results appear.
+3. Change pipeline, VAD, animation, and voice output directly in the sheet and
+   verify the device selectors update.
+4. Change the browser voice, volume, and speech rate and confirm the next spoken
+   response uses those settings.
+5. Verify the iPhone quick-access note recommends the official Home Assistant
+   **Open Page** widget and no duplicate shortcut button is shown.
 6. Close the sheet with the × button and verify the main UI remains correctly
    sized in portrait and landscape orientation.
 7. Tap the upper-left back button and confirm the previous Home Assistant page
