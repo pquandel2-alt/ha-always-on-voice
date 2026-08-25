@@ -7,7 +7,14 @@ global.WebSocket = { OPEN: 1 };
 global.window = {
   self: null,
   top: null,
-  location: { origin: "https://ha.example" },
+  isSecureContext: true,
+  location: {
+    origin: "https://ha.example",
+    pathname: "/ha_always_on_voice",
+    search: "?external_auth=1",
+    hash: "",
+    replace() {},
+  },
   devicePixelRatio: 1,
 };
 global.requestAnimationFrame = () => 1;
@@ -103,6 +110,14 @@ test("converts normalized float audio to signed 16-bit PCM", () => {
   );
 });
 
+test("uses low-latency audio chunks compatible with iOS WebViews", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "../custom_components/ha_always_on_voice/www/app/audio.js"),
+    "utf8"
+  );
+  assert.match(source, /createScriptProcessor\(2048, 1, 1\)/);
+});
+
 test("waits for and applies Home Assistant's binary handler prefix", async () => {
   const sent = [];
   const pipeline = new HAVoicePipeline("https://ha.example", "token");
@@ -160,8 +175,13 @@ test("subscribes to live device configuration updates", async () => {
   const subscribed = pipeline.subscribeConfiguration();
   const command = JSON.parse(sent.shift());
   assert.equal(command.type, "ha_always_on_voice/subscribe_config");
-  pipeline._handleMessage({ id: command.id, type: "result", success: true });
-  await subscribed;
+  pipeline._handleMessage({
+    id: command.id,
+    type: "result",
+    success: true,
+    result: { secure_url: "https://remote.example" },
+  });
+  assert.deepEqual(await subscribed, { secure_url: "https://remote.example" });
   pipeline._handleMessage({
     id: command.id,
     type: "event",
@@ -217,6 +237,64 @@ test("forwards the real VAD start event separately from STT startup", () => {
     event: { type: "tts-start", data: { tts_input: "Hallo vom Assistenten" } },
   });
   assert.equal(ttsText, "Hallo vom Assistenten");
+});
+
+test("keeps the current panel route when switching an insecure session to HTTPS", () => {
+  const { app } = createVoiceApp();
+  const originalLocation = window.location;
+  window.location = {
+    origin: "http://192.168.1.10:8123",
+    pathname: "/ha_always_on_voice",
+    search: "?external_auth=1",
+    hash: "#voice",
+  };
+  app.secureUrl = "https://home.example/";
+
+  try {
+    assert.equal(
+      app._securePanelUrl(),
+      "https://home.example/ha_always_on_voice?external_auth=1#voice"
+    );
+    let redirectedTo = null;
+    app.navigate = (url) => { redirectedTo = url; };
+    assert.equal(app._redirectToSecureUrl(), true);
+    assert.equal(redirectedTo, "https://home.example/ha_always_on_voice?external_auth=1#voice");
+  } finally {
+    window.location = originalLocation;
+  }
+});
+
+test("ends microphone upload promptly after a speech pause", () => {
+  const { app, nodes } = createVoiceApp();
+  let ended = 0;
+  app.pipeline = { endAudio: () => ended++ };
+  app.state = "HEARING";
+  app.vadSensitivity = "default";
+  app.localVadStartedAt = 1000;
+  app.localLastVoiceAt = 1000;
+  app._now = () => 1750;
+
+  app._trackLocalEndOfSpeech(new Int16Array(2048));
+  app._trackLocalEndOfSpeech(new Int16Array(2048));
+
+  assert.equal(ended, 1);
+  assert.equal(app.state, "PROCESSING");
+  assert.match(nodes["#stateDetail"].textContent, /Satzende erkannt/);
+});
+
+test("does not end audio while speech energy is present", () => {
+  const { app } = createVoiceApp();
+  let ended = 0;
+  app.pipeline = { endAudio: () => ended++ };
+  app.state = "HEARING";
+  app.localVadStartedAt = 1000;
+  app.localLastVoiceAt = 1000;
+  app._now = () => 2000;
+
+  app._trackLocalEndOfSpeech(new Int16Array(2048).fill(4000));
+
+  assert.equal(ended, 0);
+  assert.equal(app.localLastVoiceAt, 2000);
 });
 
 test("keeps an answer visible until the next request starts", async () => {

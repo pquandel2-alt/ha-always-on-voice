@@ -22,6 +22,10 @@ command or using a wake word.
 - Native back navigation
 - Bundled HA Voice Control integration icon on Home Assistant 2026.3 and newer
 - Automatic recovery after WebSocket interruptions
+- Automatic switch from an insecure internal URL to Home Assistant's configured
+  HTTPS URL before microphone activation
+- Faster action start through smaller audio chunks and local end-of-speech
+  detection matched to the selected VAD sensitivity
 - No frontend build step
 
 ## Requirements
@@ -50,10 +54,11 @@ therefore cannot capture audio even if the native Assist dialog can.
 
 ## Home Assistant app setup
 
-Make sure the URL currently used by the Companion App begins with `https://`.
-This includes the internal URL when the phone is connected to the home Wi-Fi.
-Nabu Casa, a correctly configured reverse proxy, or another trusted HTTPS
-endpoint can provide the secure origin.
+Configure at least one valid Home Assistant URL beginning with `https://`.
+This can be the external Nabu Casa URL, a correctly configured reverse proxy,
+or a secure internal endpoint. If the Companion App opens the panel through an
+internal `http://` URL on home Wi-Fi, HA Voice Control automatically reopens the
+same panel through Home Assistant's configured HTTPS URL.
 
 Microphone permission must also be enabled for Home Assistant under iOS
 **Settings → Privacy & Security → Microphone**.
@@ -83,6 +88,12 @@ Seven animation styles are available: **Fluid orb**, **Liquid equalizer**,
 the fluid surface, changes from turquoise to blue while the user speaks, and
 turns violet with a speech-like pulse during voice output. Changes to the
 animation selector are pushed to an open HA Voice Control panel immediately.
+
+The end-of-speech setting also controls the local handoff speed. **Aggressive**
+uses a 450 ms pause, **Standard** 700 ms, and **Relaxed** 1,000 ms. Smaller PCM
+chunks are streamed every 2,048 samples so the Assist pipeline can begin work
+sooner. Latency after the intent starts still depends on the configured STT,
+conversation agent, Home Assistant host, and target device.
 
 The panel also lets each phone choose its browser voice, output volume, and
 speech rate. These three settings are stored locally on that device. The system
@@ -123,8 +134,9 @@ and VAD settings are respected.
 
 ### “Mikrofonzugriff benötigt HTTPS”
 
-The URL used by the app is insecure. Change both the relevant internal/external
-Companion App URL and the browser URL to HTTPS.
+The URL used by the app is insecure. Version 1.2.0 automatically switches to a
+configured HTTPS Home Assistant URL. If the message remains, configure a valid
+external or internal HTTPS URL in Home Assistant and in the Companion App.
 
 ### Microphone permission was denied
 
@@ -150,7 +162,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 1.1.1 uses network-first service-worker caching. Reload Home Assistant or
+Version 1.2.0 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

@@ -19,6 +19,7 @@ from homeassistant.components import websocket_api
 from homeassistant.components.assist_pipeline import PipelineEvent, PipelineEventType
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from .const import (
     DOMAIN,
@@ -54,10 +55,16 @@ def _select_configuration(hass: HomeAssistant, entity_id: str | None) -> dict:
 
 def _frontend_configuration(hass: HomeAssistant, satellite) -> dict:
     """Return the configuration consumed by the browser UI."""
+    try:
+        secure_url = get_url(hass, require_ssl=True, prefer_external=True)
+    except NoURLAvailableError:
+        secure_url = None
+
     return {
         "animation_style": satellite.animation_style,
         "tts_playback": satellite.tts_playback,
         "tts_engine": satellite.tts_engine,
+        "secure_url": secure_url,
         "selects": {
             "pipeline": _select_configuration(hass, satellite.pipeline_entity_id),
             "vad_sensitivity": _select_configuration(
@@ -103,8 +110,9 @@ async def websocket_subscribe_config(
 
     unsubscribe = hass.bus.async_listen(EVENT_STATE_CHANGED, forward_configuration)
     connection.subscriptions[msg["id"]] = unsubscribe
-    connection.send_result(msg["id"])
-    connection.send_event(msg["id"], _frontend_configuration(hass, satellite))
+    configuration = _frontend_configuration(hass, satellite)
+    connection.send_result(msg["id"], configuration)
+    connection.send_event(msg["id"], configuration)
 
 
 @websocket_api.websocket_command({vol.Required("type"): WS_TYPE_TTS_FINISHED})

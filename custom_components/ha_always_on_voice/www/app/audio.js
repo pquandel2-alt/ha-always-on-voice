@@ -74,7 +74,9 @@ class AudioCapture {
       // ScriptProcessor remains the most broadly supported PCM capture path in
       // iOS WebViews. A zero-gain output keeps the processor alive without
       // feeding the microphone back through the speaker.
-      this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      // Smaller chunks reach the Assist pipeline sooner and cut up to roughly
+      // half a buffer of avoidable latency while remaining reliable on iOS.
+      this.scriptProcessor = this.audioContext.createScriptProcessor(2048, 1, 1);
       this.silentGain = this.audioContext.createGain();
       this.silentGain.gain.value = 0;
 

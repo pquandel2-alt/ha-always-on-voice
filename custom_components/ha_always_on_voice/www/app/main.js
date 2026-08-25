@@ -41,6 +41,12 @@ class VoiceAssistApp {
     this.voiceVolume = 1;
     this.speechRate = 1;
     this.browserVoiceURI = "";
+    this.secureUrl = null;
+    this.vadSensitivity = "default";
+    this.localVadStartedAt = null;
+    this.localLastVoiceAt = null;
+    this.localEndSent = false;
+    this.navigate = (url) => window.location.replace(url);
     this.metrics = {
       vadStart: null,
       sttEnd: null,
@@ -429,6 +435,7 @@ class VoiceAssistApp {
       await this._connectPipeline();
       const supportError = globalThis.AudioCapture.getSupportError();
       if (supportError) {
+        if (!window.isSecureContext && this._redirectToSecureUrl()) return;
         this._handleError(supportError, { recoverable: false });
         return;
       }
@@ -498,8 +505,32 @@ class VoiceAssistApp {
     this.pipeline.onConfiguration = (config) => this._applyRunConfiguration(config);
     this.pipeline.onError = (error) => this._handleError(error, { recoverable: true });
     await this.pipeline.connect();
-    await this.pipeline.subscribeConfiguration();
+    const configuration = await this.pipeline.subscribeConfiguration();
+    this._applyRunConfiguration(configuration || {});
     this._setDiagnostic("diagConnection", "Verbunden", "ok");
+  }
+
+  _securePanelUrl() {
+    if (!this.secureUrl) return null;
+    try {
+      const target = new URL(this.secureUrl);
+      if (target.protocol !== "https:" || target.origin === window.location.origin) return null;
+      target.pathname = window.location.pathname;
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      return target.href;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  _redirectToSecureUrl() {
+    const target = this._securePanelUrl();
+    if (!target) return false;
+    this._setState("CONNECTING");
+    this._updateStateUI("Sichere Verbindung", "Wechsel zur HTTPS-Adresse …");
+    this.navigate(target);
+    return true;
   }
 
   async _getAuth() {
@@ -534,6 +565,9 @@ class VoiceAssistApp {
     this.ttsText = "";
     this.runEnded = false;
     this.runFailed = false;
+    this.localVadStartedAt = null;
+    this.localLastVoiceAt = null;
+    this.localEndSent = false;
     this._setState("STARTING");
     this._updateStateUI("Einen Moment", "Spracherkennung wird gestartet …");
     const runConfig = await this.pipeline.startPipeline(this.audio.sampleRate);
@@ -554,7 +588,35 @@ class VoiceAssistApp {
   _onAudioData(data) {
     if (this.state === "LISTENING" || this.state === "HEARING") {
       this.pipeline?.sendAudio(data);
+      if (this.state === "HEARING") this._trackLocalEndOfSpeech(data);
     }
+  }
+
+  _trackLocalEndOfSpeech(data) {
+    if (this.localEndSent || !this.localVadStartedAt || !data?.length) return;
+    const now = this._now();
+    let energy = 0;
+    let samples = 0;
+    for (let index = 0; index < data.length; index += 8) {
+      const sample = data[index] / 32768;
+      energy += sample * sample;
+      samples++;
+    }
+    const rms = Math.sqrt(energy / Math.max(1, samples));
+    if (rms >= 0.012) this.localLastVoiceAt = now;
+
+    const silenceTimeout = {
+      aggressive: 450,
+      default: 700,
+      relaxed: 1000,
+    }[this.vadSensitivity] || 700;
+    const lastVoice = this.localLastVoiceAt || this.localVadStartedAt;
+    if (now - this.localVadStartedAt < 350 || now - lastVoice < silenceTimeout) return;
+
+    this.localEndSent = true;
+    this.pipeline?.endAudio();
+    this._setState("PROCESSING");
+    this._updateStateUI("Wird verarbeitet", "Satzende erkannt – Aktion wird vorbereitet …");
   }
 
   _onSttStart() {
@@ -571,6 +633,9 @@ class VoiceAssistApp {
     this.metrics.sttEnd = null;
     this.metrics.intentStart = null;
     this.metrics.ttsStart = null;
+    this.localVadStartedAt = this._now();
+    this.localLastVoiceAt = this.localVadStartedAt;
+    this.localEndSent = false;
     this._setState("HEARING");
     this._updateStateUI("Ich höre dich", "Sprich deinen Satz zu Ende");
     this._setDiagnostic("diagStt", "Sprache erkannt", "ok");
@@ -893,6 +958,7 @@ class VoiceAssistApp {
       ? config.tts_playback
       : "pipeline";
     this.ttsEngine = config.tts_engine || null;
+    this.secureUrl = config.secure_url || this.secureUrl;
     if (!this.persistentNotice?.startsWith("TTS-Fehler:")) {
       this.persistentNotice = null;
     }
@@ -907,6 +973,7 @@ class VoiceAssistApp {
           : (this.ttsEngine || "Nicht konfiguriert"));
     }
     this._renderDeviceSettings(config.selects || this.deviceSelects);
+    this.vadSensitivity = this.deviceSelects.vad_sensitivity?.value || this.vadSensitivity;
     const pipelineName = this.deviceSelects.pipeline?.value;
     this._setDiagnostic(
       "diagPipeline",
