@@ -1,6 +1,6 @@
 {
-  "name": "HA Voice Assist",
-  "short_name": "Voice",
+  "name": "HA Voice Control",
+  "short_name": "Voice Control",
   "description": "Always-on voice control for Home Assistant",
   "start_url": "/ha_always_on_voice",
   "scope": "/",
@@ -34,7 +34,7 @@
     {
       "name": "Voice Control",
       "short_name": "Voice",
-      "description": "Open Voice Assist",
+      "description": "Open HA Voice Control",
       "url": "/ha_always_on_voice",
       "icons": [
         {

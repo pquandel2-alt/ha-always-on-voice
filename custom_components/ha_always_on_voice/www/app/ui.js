@@ -16,7 +16,7 @@ globalThis.HAVoiceMarkup = `
         </div>
         <div class="brand-copy">
           <p class="eyebrow">HOME ASSISTANT</p>
-          <h1>Voice</h1>
+          <h1>Voice Control</h1>
         </div>
         <button class="header-btn settings-btn" id="settingsBtn" type="button" aria-label="Einstellungen öffnen">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -31,7 +31,7 @@ globalThis.HAVoiceMarkup = `
         <p class="user-transcript" id="userTranscript"></p>
       </section>
 
-      <section class="animation-container" aria-label="Voice Assist Status">
+      <section class="animation-container" aria-label="HA Voice Control Status">
         <div class="orb-aura" aria-hidden="true"></div>
         <canvas id="frequencyRing" aria-hidden="true"></canvas>
         <div class="orbit orbit-outer" aria-hidden="true"><span></span></div>
@@ -56,7 +56,7 @@ globalThis.HAVoiceMarkup = `
         <span class="status-dot" aria-hidden="true"></span>
         <div>
           <p class="state-indicator" id="stateIndicator">Initialisieren</p>
-          <p class="state-detail" id="stateDetail">Voice Assist wird vorbereitet …</p>
+          <p class="state-detail" id="stateDetail">HA Voice Control wird vorbereitet …</p>
         </div>
       </section>
     </main>
@@ -65,7 +65,7 @@ globalThis.HAVoiceMarkup = `
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="settings-header">
         <div>
-          <p class="eyebrow">VOICE ASSIST</p>
+          <p class="eyebrow">HA VOICE CONTROL</p>
           <h2>Einstellungen</h2>
         </div>
         <button class="close-btn" id="closeSettingsBtn" type="button" aria-label="Einstellungen schließen">×</button>
@@ -75,7 +75,7 @@ globalThis.HAVoiceMarkup = `
           <h3>Sprachausgabe und Design</h3>
           <p class="settings-hint">
             Assist-Pipeline, Erkennungsdauer, TTS-Wiedergabe und Animation stellst
-            du am Gerät Voice Assist unter Geräte &amp; Dienste ein.
+            du am Gerät HA Voice Control unter Geräte &amp; Dienste ein.
           </p>
           <div class="settings-info-row">
             <span>TTS-Quelle der Pipeline</span>
@@ -89,14 +89,14 @@ globalThis.HAVoiceMarkup = `
           <h3>iPhone-Schnellzugriff</h3>
           <p class="settings-hint">
             Erstelle einen iOS-Kurzbefehl mit der Aktion
-            <strong>Home Assistant → Seite öffnen → Voice Assist</strong>.
+            <strong>Home Assistant → Seite öffnen → HA Voice Control</strong>.
             Öffne danach die Kurzbefehl-Details und wähle
             <strong>Zum Home-Bildschirm</strong>.
           </p>
           <ol class="shortcut-steps">
             <li>„Kurzbefehl erstellen“ öffnen</li>
             <li>Home Assistant → Seite öffnen wählen</li>
-            <li>Voice Assist auswählen und zum Home-Bildschirm hinzufügen</li>
+            <li>HA Voice Control auswählen und zum Home-Bildschirm hinzufügen</li>
           </ol>
           <a class="settings-link settings-link-primary" id="createShortcutBtn"
              href="shortcuts://create-shortcut">
@@ -104,7 +104,7 @@ globalThis.HAVoiceMarkup = `
           </a>
           <a class="settings-link settings-link-secondary"
              href="homeassistant://navigate/ha_always_on_voice?server=default">
-            Voice Assist direkt öffnen
+            HA Voice Control direkt öffnen
           </a>
         </section>
         <button id="testMicBtn" type="button">Mikrofon testen</button>

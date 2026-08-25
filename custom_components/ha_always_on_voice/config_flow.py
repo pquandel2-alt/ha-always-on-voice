@@ -1,4 +1,4 @@
-"""Config flow for HA Always-On Voice integration."""
+"""Config flow for the HA Voice Control integration."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ from .const import DOMAIN
 
 _SCHEMA = vol.Schema(
     {
-        vol.Required("name", default="Voice Assist"): str,
+        vol.Required("name", default="HA Voice Control"): str,
     }
 )
 
 
 class HA_ALWAYS_ON_VOICE_ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for HA Always-On Voice."""
+    """Config flow for HA Voice Control."""
 
     VERSION = 1
 

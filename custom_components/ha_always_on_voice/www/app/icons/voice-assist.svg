@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">HA Always-On Voice</title>
+  <title id="title">HA Voice Control</title>
   <desc id="desc">A turquoise voice waveform inside a softly illuminated orb</desc>
   <defs>
     <linearGradient id="background" x1="76" y1="58" x2="438" y2="458" gradientUnits="userSpaceOnUse">

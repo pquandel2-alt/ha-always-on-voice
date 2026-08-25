@@ -52,7 +52,7 @@ class VoiceAssistApp {
     this.frequencyCanvas = root.querySelector("#frequencyRing");
     this.canvasCtx = this.frequencyCanvas.getContext("2d");
 
-    if (!this.container) throw new Error("Voice Assist UI wurde nicht gefunden.");
+    if (!this.container) throw new Error("HA Voice Control UI wurde nicht gefunden.");
     this._setupEventListeners();
     this._setupLegacyAuthListener();
   }
@@ -187,7 +187,7 @@ class VoiceAssistApp {
       window.location.replace("/ha_always_on_voice");
       return new Promise(() => {});
     }
-    throw new Error("Keine Home-Assistant-Anmeldung verfügbar. Öffne Voice Assist über die Seitenleiste.");
+    throw new Error("Keine Home-Assistant-Anmeldung verfügbar. Öffne HA Voice Control über die Seitenleiste.");
   }
 
   async _startListening() {
@@ -558,7 +558,7 @@ class VoiceAssistApp {
   _handleError(error, { recoverable = false } = {}) {
     if (this.destroyed) return;
     const normalized = error instanceof Error ? error : new Error("Unbekannter Fehler.");
-    console.error("Voice Assist error", normalized);
+    console.error("HA Voice Control error", normalized);
     this.runFailed = true;
     clearTimeout(this.restartTimer);
     clearTimeout(this.pipelineRefreshTimer);

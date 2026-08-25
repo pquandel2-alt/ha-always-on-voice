@@ -30,11 +30,11 @@ Prerequisites:
 
 - The URL currently used by the Companion App starts with `https://`.
 - Microphone access is enabled for the Home Assistant app in iOS settings.
-- A working Assist pipeline is selected on the Voice Assist device.
+- A working Assist pipeline is selected on the HA Voice Control device.
 
 ### First launch
 
-1. Open **Voice Assist** from the sidebar.
+1. Open **HA Voice Control** from the sidebar.
 2. Confirm that the new interface fills the panel and immediately attempts to
    activate the microphone.
 3. Approve the iOS microphone prompt if shown. Only tap **Mikrofon starten** if

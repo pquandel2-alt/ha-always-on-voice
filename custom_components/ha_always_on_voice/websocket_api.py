@@ -62,7 +62,7 @@ async def websocket_subscribe_config(
     satellite = hass.data.get(DOMAIN, {}).get("satellite")
     if satellite is None:
         connection.send_error(
-            msg["id"], "satellite_not_ready", "Voice Assist satellite not set up yet"
+            msg["id"], "satellite_not_ready", "HA Voice Control satellite not set up yet"
         )
         return
 
@@ -95,7 +95,7 @@ async def websocket_tts_finished(
     satellite = hass.data.get(DOMAIN, {}).get("satellite")
     if satellite is None:
         connection.send_error(
-            msg["id"], "satellite_not_ready", "Voice Assist satellite not set up yet"
+            msg["id"], "satellite_not_ready", "HA Voice Control satellite not set up yet"
         )
         return
     satellite.tts_response_finished()
@@ -118,7 +118,7 @@ async def websocket_run(
     satellite = hass.data.get(DOMAIN, {}).get("satellite")
     if satellite is None:
         connection.send_error(
-            msg["id"], "satellite_not_ready", "Voice Assist satellite not set up yet"
+            msg["id"], "satellite_not_ready", "HA Voice Control satellite not set up yet"
         )
         return
 

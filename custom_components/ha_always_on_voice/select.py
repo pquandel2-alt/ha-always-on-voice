@@ -1,4 +1,4 @@
-"""Pipeline and VAD sensitivity selectors for the Voice Assist device.
+"""Pipeline and VAD sensitivity selectors for the HA Voice Control device.
 
 These reuse assist_pipeline's base select entities (the same pattern used
 by wyoming/esphome satellites) so the pipeline and "finished speaking"
@@ -43,13 +43,13 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, entry.entry_id)},
         name=PANEL_TITLE,
-        manufacturer="ha-always-on-voice",
-        model="Browser PWA Satellite",
+        manufacturer="HA Voice Control",
+        model="Browser Voice Satellite",
     )
 
 
 class AlwaysOnVoicePipelineSelect(AssistPipelineSelect):
-    """Pipeline selector for the Voice Assist device."""
+    """Pipeline selector for the HA Voice Control device."""
 
     _attr_has_entity_name = True
 
@@ -60,7 +60,7 @@ class AlwaysOnVoicePipelineSelect(AssistPipelineSelect):
 
 
 class AlwaysOnVoiceVadSensitivitySelect(VadSensitivitySelect):
-    """VAD sensitivity selector for the Voice Assist device."""
+    """VAD sensitivity selector for the HA Voice Control device."""
 
     _attr_has_entity_name = True
 
@@ -71,7 +71,7 @@ class AlwaysOnVoiceVadSensitivitySelect(VadSensitivitySelect):
 
 
 class _RestoredConfigSelect(SelectEntity, RestoreEntity):
-    """Base class for locally stored Voice Assist configuration."""
+    """Base class for locally stored HA Voice Control configuration."""
 
     _attr_has_entity_name = True
     _attr_should_poll = False

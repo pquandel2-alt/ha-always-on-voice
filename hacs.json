@@ -1,5 +1,5 @@
 {
-  "name": "HA Always-On Voice",
+  "name": "HA Voice Control",
   "homeassistant": "2024.10.0",
   "render_readme": true,
   "domains": ["frontend", "assist_satellite", "select"]

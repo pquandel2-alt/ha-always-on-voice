@@ -1,4 +1,4 @@
-"""HA Always-On Voice Integration."""
+"""HA Voice Control integration."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .const import (
 from .websocket_api import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
-_FRONTEND_VERSION = "0.8.1"
+_FRONTEND_VERSION = "0.9.0"
 
 PLATFORMS: list[Platform] = [
     Platform.ASSIST_SATELLITE,
@@ -32,6 +32,8 @@ PLATFORMS: list[Platform] = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the integration from a config entry."""
+    if entry.title in {"Voice Assist", "HA Always-On Voice"}:
+        hass.config_entries.async_update_entry(entry, title=PANEL_TITLE)
     store = hass.data.setdefault(DOMAIN, {})
     await _async_register_frontend(hass)
     if not store.get("websocket_api_registered"):
@@ -53,7 +55,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
-    """Register the Voice Assist panel and static assets."""
+    """Register the HA Voice Control panel and static assets."""
     store = hass.data[DOMAIN]
 
     www = Path(__file__).parent / "www"

@@ -1,10 +1,10 @@
 /**
- * Service Worker for HA Voice Assist PWA
+ * Service Worker for the HA Voice Control PWA
  * Network-first shell caching so fixes are picked up immediately while the
  * last successful shell remains available as an offline fallback.
  */
 
-const CACHE_NAME = "ha-voice-v8-1";
+const CACHE_NAME = "ha-voice-v9";
 const SHELL_URLS = [
   "/ha_voice_app/index.html",
   "/ha_voice_app/ui.js",

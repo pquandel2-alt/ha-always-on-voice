@@ -1,4 +1,4 @@
-"""Diagnostic sensors for HA Always-On Voice."""
+"""Diagnostic sensors for HA Voice Control."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ class AlwaysOnVoiceTtsProviderSensor(SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=PANEL_TITLE,
-            manufacturer="ha-always-on-voice",
-            model="Browser PWA Satellite",
+            manufacturer="HA Voice Control",
+            model="Browser Voice Satellite",
         )
 
     async def async_update(self) -> None:

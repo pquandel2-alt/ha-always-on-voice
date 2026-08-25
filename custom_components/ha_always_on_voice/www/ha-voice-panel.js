@@ -1,5 +1,5 @@
 const APP_BASE = "/ha_voice_app";
-const APP_VERSION = "0.8.1";
+const APP_VERSION = "0.9.0";
 
 function loadVoiceScript(name, readyCheck) {
   if (readyCheck()) return Promise.resolve();
@@ -58,9 +58,9 @@ class HaVoicePanel extends HTMLElement {
         return true;
       })
       .catch((error) => {
-        console.error("Voice Assist assets failed to load", error);
+        console.error("HA Voice Control assets failed to load", error);
         this.shadowRoot.querySelector("#voiceMount").textContent =
-          "Voice Assist konnte nicht geladen werden. Bitte Home Assistant neu laden.";
+          "HA Voice Control konnte nicht geladen werden. Bitte Home Assistant neu laden.";
         return false;
       });
     this._maybeStart();

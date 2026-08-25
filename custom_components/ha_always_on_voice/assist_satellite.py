@@ -1,4 +1,4 @@
-"""Assist satellite entity for HA Always-On Voice.
+"""Assist satellite entity for HA Voice Control.
 
 Represents the browser/PWA as an Assist satellite device so it shows up
 under Settings -> Voice assistants -> Devices, with pipeline and VAD
@@ -57,8 +57,8 @@ class AlwaysOnVoiceSatellite(AssistSatelliteEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=PANEL_TITLE,
-            manufacturer="ha-always-on-voice",
-            model="Browser PWA Satellite",
+            manufacturer="HA Voice Control",
+            model="Browser Voice Satellite",
         )
         self._event_callback: Callable[[PipelineEvent], None] | None = None
 
