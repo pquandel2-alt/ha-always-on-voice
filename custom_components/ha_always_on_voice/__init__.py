@@ -21,7 +21,7 @@ from .const import (
 from .websocket_api import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
-_FRONTEND_VERSION = "0.2.2"
+_FRONTEND_VERSION = "0.3.0"
 
 PLATFORMS: list[Platform] = [Platform.ASSIST_SATELLITE, Platform.SELECT]
 

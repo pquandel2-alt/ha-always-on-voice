@@ -25,7 +25,27 @@ class VoiceAssistApp {
     this.currentTranscript = "";
     this.animationId = null;
 
+    // Kept fresh continuously (not just on first read) since HA access
+    // tokens are short-lived and the panel re-sends one on every hass
+    // update.
+    this.latestToken = null;
+    this.latestHassUrl = null;
+
+    this._setupAuthListener();
     this._setupEventListeners();
+  }
+
+  _setupAuthListener() {
+    window.addEventListener("message", (event) => {
+      if (event.data?.type !== "HA_AUTH_TOKEN") return;
+      this.latestToken = event.data.token;
+      this.latestHassUrl = event.data.hassUrl;
+      localStorage.setItem("ha_auth_token", event.data.token);
+      localStorage.setItem("ha_url", event.data.hassUrl);
+      if (this.pipeline) {
+        this.pipeline.accessToken = event.data.token;
+      }
+    });
   }
 
   _setupEventListeners() {
@@ -76,35 +96,44 @@ class VoiceAssistApp {
   }
 
   async _getAuthToken() {
-    return new Promise((resolve, reject) => {
-      // Check if token is already in localStorage (PWA mode)
-      const storedToken = localStorage.getItem("ha_auth_token");
-      if (storedToken) {
-        resolve(storedToken);
+    const embedded = window.self !== window.top;
+
+    if (embedded) {
+      // Running inside the HA panel iframe: always wait for a fresh
+      // token from the parent instead of trusting a possibly-expired
+      // one cached in localStorage from a previous session.
+      const fresh = await this._waitForToken(8000);
+      if (fresh) return fresh;
+    }
+
+    const stored = localStorage.getItem("ha_auth_token");
+    if (stored) return stored;
+
+    throw new Error("Auth token not received");
+  }
+
+  _waitForToken(timeoutMs) {
+    return new Promise((resolve) => {
+      if (this.latestToken) {
+        resolve(this.latestToken);
         return;
       }
-
-      // Listen for postMessage from panel (iframe mode)
-      const handleMessage = (event) => {
-        if (event.data?.type === "HA_AUTH_TOKEN") {
-          window.removeEventListener("message", handleMessage);
-          localStorage.setItem("ha_auth_token", event.data.token);
-          localStorage.setItem("ha_url", event.data.hassUrl);
-          resolve(event.data.token);
+      const interval = setInterval(() => {
+        if (this.latestToken) {
+          clearInterval(interval);
+          clearTimeout(timeoutId);
+          resolve(this.latestToken);
         }
-      };
-
-      window.addEventListener("message", handleMessage);
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        window.removeEventListener("message", handleMessage);
-        reject(new Error("Auth token not received"));
-      }, 5000);
+      }, 100);
+      const timeoutId = setTimeout(() => {
+        clearInterval(interval);
+        resolve(null);
+      }, timeoutMs);
     });
   }
 
   async _getHassUrl() {
+    if (this.latestHassUrl) return this.latestHassUrl;
     const stored = localStorage.getItem("ha_url");
     if (stored) return stored;
     return window.location.origin;
@@ -311,14 +340,29 @@ class VoiceAssistApp {
     this._setState("ERROR");
     this._updateStateUI(`Error: ${error.message}`);
 
-    // Try to recover after 3 seconds
+    if (/token|password|auth/i.test(error.message || "")) {
+      // Stale/expired token — drop the cache so we don't immediately
+      // fail the same way again on reconnect.
+      localStorage.removeItem("ha_auth_token");
+      this.latestToken = null;
+    }
+
+    // Try to recover after 3 seconds by fully reconnecting (fresh auth +
+    // a new pipeline connection), not just restarting the pipeline run
+    // on a connection that may itself be broken.
     setTimeout(() => {
-      try {
-        this._startListening();
-      } catch (e) {
-        console.error("Failed to recover:", e);
-      }
+      this._reconnect().catch((e) => console.error("Failed to recover:", e));
     }, 3000);
+  }
+
+  async _reconnect() {
+    this._stopVisualization();
+    this.audio.stop();
+    if (this.pipeline) {
+      this.pipeline.disconnect();
+      this.pipeline = null;
+    }
+    await this.init();
   }
 
   _setState(newState) {

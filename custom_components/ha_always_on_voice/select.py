@@ -46,6 +46,8 @@ def _device_info(entry: ConfigEntry) -> DeviceInfo:
 class AlwaysOnVoicePipelineSelect(AssistPipelineSelect):
     """Pipeline selector for the Voice Assist device."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the pipeline selector."""
         super().__init__(hass, DOMAIN, entry.entry_id)
@@ -54,6 +56,8 @@ class AlwaysOnVoicePipelineSelect(AssistPipelineSelect):
 
 class AlwaysOnVoiceVadSensitivitySelect(VadSensitivitySelect):
     """VAD sensitivity selector for the Voice Assist device."""
+
+    _attr_has_entity_name = True
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the VAD sensitivity selector."""
