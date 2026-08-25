@@ -7,3 +7,4 @@ PANEL_URL_PATH = "ha_always_on_voice"
 FRONTEND_URL = "/static/ha_always_on_voice/ha-voice-panel.js"
 
 WS_TYPE_RUN = f"{DOMAIN}/run"
+WS_TYPE_TTS_FINISHED = f"{DOMAIN}/tts_finished"

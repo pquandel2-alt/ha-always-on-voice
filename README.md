@@ -1,120 +1,108 @@
 # HA Always-On Voice
 
-Hands-free voice control for Home Assistant — open the app on your iPhone and speak continuously without pressing buttons or wake words.
+Hands-free voice control for Home Assistant. Open the Voice Assist panel,
+activate the microphone once, and speak without pressing a button for every
+command or using a wake word.
 
 ## Features
 
-- **Always-On Voice**: App opens → immediately listening. No buttons, no wake words.
-- **Local Processing**: Uses Home Assistant's Whisper pipeline for speech-to-text (fully private).
-- **Audio-Reactive UI**: Organically morphing blob + real-time frequency visualization.
-- **PWA Widget**: Install as an icon on your home screen — works like a native app.
-- **iOS Optimized**: Full support for iPhone, respects safe areas (notch, home bar).
-- **State Machine**: Clean IDLE → LISTENING → VAD_ACTIVE → PROCESSING → SPEAKING → LISTENING lifecycle.
+- Continuous listening while the panel stays open and in the foreground
+- Local Home Assistant Assist pipeline, including Whisper, conversation agent,
+  and TTS
+- Assist Satellite device with pipeline and VAD sensitivity configuration
+- Audio-reactive interface designed for the Home Assistant iOS app
+- Automatic recovery after WebSocket interruptions
+- No frontend build step
 
 ## Requirements
 
-- Home Assistant with Whisper STT configured (Cloud or local add-on)
-- HTTPS enabled (required for Microphone API on iOS)
-- Modern browser (iOS Safari, Chrome)
+- Home Assistant 2024.10 or newer
+- A configured Assist pipeline with STT and, optionally, TTS
+- A current Home Assistant Companion App or modern browser
+- **HTTPS for the Home Assistant URL used by the device**
+
+The official Assist dialog may use native microphone support inside the
+Companion App. This custom web panel uses the browser media API, which Apple
+only exposes to secure web contexts. An internal `http://` Home Assistant URL
+therefore cannot capture audio even if the native Assist dialog can.
 
 ## Installation
 
-1. Clone into `custom_components`:
-   ```bash
-   git clone https://github.com/pquandel2/ha-always-on-voice.git \
-     ~/.homeassistant/custom_components/ha_always_on_voice
-   ```
-
+1. Install the repository through HACS as a custom integration, or copy
+   `custom_components/ha_always_on_voice` into the Home Assistant config
+   directory.
 2. Restart Home Assistant.
+3. Open **Settings → Devices & services → Add integration** and select
+   **HA Always-On Voice**.
+4. Open **Voice Assist** from the sidebar.
+5. Tap **Microphone starten** once. iOS requires this user gesture before a web
+   page may activate audio capture.
 
-3. Go to **Settings → Devices & Services → Create Integration** and search for "HA Always-On Voice".
+## Home Assistant app setup
 
-4. Open the Voice Assist panel in your sidebar.
+Make sure the URL currently used by the Companion App begins with `https://`.
+This includes the internal URL when the phone is connected to the home Wi-Fi.
+Nabu Casa, a correctly configured reverse proxy, or another trusted HTTPS
+endpoint can provide the secure origin.
 
-## Usage
-
-### Panel (in Home Assistant UI)
-- Navigate to the Voice Assist panel
-- Speak naturally — transcripts appear in real-time
-- After each response, listening resumes automatically
-
-### PWA on iPhone
-1. Open Home Assistant in Safari
-2. Go to Voice Assist panel
-3. Tap **Share** → **Add to Home Screen**
-4. App appears as standalone icon
-5. Open and start speaking (no browser chrome)
-
-## Architecture
-
-```
-iPhone Safari/PWA
-  ├─ getUserMedia() → AudioContext 16kHz
-  ├─ WebSocket: assist_pipeline/run
-  │   ├─ PCM Int16 audio streaming
-  │   ├─ STT (Whisper)
-  │   ├─ NLU (Conversation Agent)
-  │   └─ TTS (Piper/espeak)
-  │
-  └─ UI State Machine
-       IDLE → LISTENING → VAD_ACTIVE → PROCESSING → SPEAKING → LISTENING
-```
-
-## Animation System
-
-The central blob reacts to audio in real-time:
-
-- **LISTENING**: Teal pulse, frequency ring active
-- **VAD_ACTIVE**: Bright green, intensity burst
-- **PROCESSING**: Amber morph, ring blur
-- **SPEAKING**: Violet, synchronized to voice output
-
-Powered by Canvas `AnalyserNode` (FFT 128 bins) → 128 radial bars.
+Microphone permission must also be enabled for Home Assistant under iOS
+**Settings → Privacy & Security → Microphone**.
 
 ## Configuration
 
-No backend config needed. All settings are in the UI:
+Pipeline and finished-speaking sensitivity are configured on the generated
+device:
 
-- **Pipeline Selection**: Choose from available HA pipelines
-- **Microphone Test**: Verify audio capture works
+**Settings → Voice assistants → Devices → Voice Assist**
+
+## Architecture
+
+The custom panel renders directly in a Shadow DOM inside the Home Assistant
+frontend. It intentionally does not use an iframe, because iOS WebViews can
+restrict media capture in subframes.
+
+Audio is captured with Web Audio, converted to signed 16-bit mono PCM, and sent
+through the custom `ha_always_on_voice/run` WebSocket command. Every binary
+message is prefixed with the handler ID allocated by Home Assistant. The backend
+routes the stream through the Assist Satellite entity so the device's pipeline
+and VAD settings are respected.
 
 ## Troubleshooting
 
-### Microphone not working
-- Ensure HTTPS is enabled (check browser console)
-- Grant microphone permission when prompted
-- Test with Settings → Microphone Test button
+### “Mikrofonzugriff benötigt HTTPS”
 
-### No response from Assist
-- Verify STT pipeline is configured in Home Assistant
-- Check HA logs for pipeline errors
-- Ensure default conversation agent is set
+The URL used by the app is insecure. Change both the relevant internal/external
+Companion App URL and the browser URL to HTTPS.
 
-### PWA won't install on iPhone
-- iOS only supports manual install: Share → Add to Home Screen
-- No `beforeinstallprompt` banner (Apple limitation)
-- App must be accessed over HTTPS
+### Microphone permission was denied
 
-### Token expiration
-- PWA stores token in localStorage
-- Log out and reinstall if token becomes invalid
+Enable Home Assistant microphone access in iOS settings, close the panel, open
+it again, and tap **Mikrofon starten**.
 
-## Development
+### No transcript or response
+
+- Confirm that the Voice Assist device has a valid pipeline selected.
+- Verify Whisper/STT using Home Assistant's built-in Assist dialog.
+- Check the Home Assistant log for `ha_always_on_voice` or pipeline errors.
+
+### Old frontend remains visible
+
+Version 0.4 uses network-first service-worker caching. Reload Home Assistant or
+fully close and reopen the Companion App once after upgrading from an older
+version.
+
+## Development and tests
+
+The frontend is vanilla JavaScript and CSS. Run the protocol/unit checks with:
 
 ```bash
-# Install dependencies (if any Python)
-pip install voluptuous
-
-# Frontend is Vanilla JS (no build step)
-# Test changes by modifying files in www/app/
-
-# Restart Home Assistant to reload integration
+node --test tests/frontend.test.js
 ```
+
+Restart Home Assistant after backend changes. Frontend asset versions are set in
+`custom_components/ha_always_on_voice/__init__.py` and
+`www/ha-voice-panel.js`.
 
 ## License
 
 MIT
-
-## Author
-
-pquandel2

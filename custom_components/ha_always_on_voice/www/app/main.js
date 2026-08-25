@@ -1,397 +1,462 @@
 /**
- * Main application: State machine + lifecycle management
- * States: IDLE → LISTENING → VAD_ACTIVE → PROCESSING → SPEAKING → LISTENING
+ * Voice UI state machine and lifecycle management.
  */
 
 class VoiceAssistApp {
-  constructor() {
+  constructor({ root = document, authProvider = null } = {}) {
+    this.root = root;
+    this.authProvider = authProvider;
     this.state = "IDLE";
-    this.audio = new AudioCapture();
+    this.audio = new globalThis.AudioCapture();
     this.pipeline = null;
-    this.container = document.getElementById("app");
-
-    // UI elements
-    this.stateIndicator = document.getElementById("stateIndicator");
-    this.assistResponse = document.getElementById("assistResponse");
-    this.userTranscript = document.getElementById("userTranscript");
-    this.settingsPanel = document.getElementById("settingsPanel");
-    this.settingsBtn = document.getElementById("settingsBtn");
-    this.closeSettingsBtn = document.getElementById("closeSettingsBtn");
-    this.testMicBtn = document.getElementById("testMicBtn");
-    this.orb = document.getElementById("orb");
-    this.frequencyCanvas = document.getElementById("frequencyRing");
-    this.canvasCtx = this.frequencyCanvas.getContext("2d");
-
-    this.currentTranscript = "";
-    this.animationId = null;
-
-    // Kept fresh continuously (not just on first read) since HA access
-    // tokens are short-lived and the panel re-sends one on every hass
-    // update.
     this.latestToken = null;
     this.latestHassUrl = null;
+    this.userActivated = false;
+    this.initialized = false;
+    this.destroyed = false;
+    this.starting = false;
+    this.reconnecting = false;
+    this.reconnectTimer = null;
+    this.restartTimer = null;
+    this.animationId = null;
+    this.currentTtsAudio = null;
+    this.ttsEnded = true;
+    this.runEnded = false;
+    this.runFailed = false;
+    this.smoothedLevels = new Float32Array(72);
 
-    this._setupAuthListener();
+    this.container = root.querySelector("#app");
+    this.stateIndicator = root.querySelector("#stateIndicator");
+    this.stateDetail = root.querySelector("#stateDetail");
+    this.assistResponse = root.querySelector("#assistResponse");
+    this.userTranscript = root.querySelector("#userTranscript");
+    this.settingsPanel = root.querySelector("#settingsPanel");
+    this.settingsBtn = root.querySelector("#settingsBtn");
+    this.closeSettingsBtn = root.querySelector("#closeSettingsBtn");
+    this.testMicBtn = root.querySelector("#testMicBtn");
+    this.startOverlay = root.querySelector("#startOverlay");
+    this.startBtn = root.querySelector("#startBtn");
+    this.frequencyCanvas = root.querySelector("#frequencyRing");
+    this.canvasCtx = this.frequencyCanvas.getContext("2d");
+
+    if (!this.container) throw new Error("Voice Assist UI wurde nicht gefunden.");
     this._setupEventListeners();
-  }
-
-  _setupAuthListener() {
-    window.addEventListener("message", (event) => {
-      if (event.data?.type !== "HA_AUTH_TOKEN") return;
-      this.latestToken = event.data.token;
-      this.latestHassUrl = event.data.hassUrl;
-      localStorage.setItem("ha_auth_token", event.data.token);
-      localStorage.setItem("ha_url", event.data.hassUrl);
-      if (this.pipeline) {
-        this.pipeline.accessToken = event.data.token;
-      }
-    });
+    this._setupLegacyAuthListener();
   }
 
   _setupEventListeners() {
-    this.audio.onAudioData = (int16Data) => this._onAudioData(int16Data);
-    this.audio.onError = (error) => this._handleError(error);
-
+    this.audio.onAudioData = (data) => this._onAudioData(data);
+    this.startBtn.addEventListener("click", () => this.activate());
     this.settingsBtn.addEventListener("click", () => {
-      this.settingsPanel.classList.toggle("open");
+      this.settingsPanel.classList.add("open");
+      this.settingsPanel.setAttribute("aria-hidden", "false");
     });
-
-    this.closeSettingsBtn.addEventListener("click", () => {
-      this.settingsPanel.classList.remove("open");
-    });
-
+    this.closeSettingsBtn.addEventListener("click", () => this._closeSettings());
     this.testMicBtn.addEventListener("click", () => this._testMicrophone());
+    this.root.addEventListener?.("keydown", (event) => {
+      if (event.key === "Escape") this._closeSettings();
+    });
+  }
+
+  _setupLegacyAuthListener() {
+    if (window.self === window.top) return;
+    window.addEventListener("message", (event) => {
+      if (
+        event.origin !== window.location.origin ||
+        event.source !== window.parent ||
+        event.data?.type !== "HA_AUTH_TOKEN"
+      ) return;
+      this.updateAuth(event.data.token, event.data.hassUrl);
+    });
+  }
+
+  updateAuth(token, hassUrl) {
+    if (!token) return;
+    this.latestToken = token;
+    this.latestHassUrl = hassUrl || window.location.origin;
+    if (this.pipeline) this.pipeline.accessToken = token;
   }
 
   async init() {
+    if (this.initialized || this.destroyed) return;
+    this.initialized = true;
+    this._setState("CONNECTING");
+    this._updateStateUI("Verbinden", "Home Assistant wird vorbereitet …");
+
     try {
-      this._setState("IDLE");
-      this._updateStateUI("Initializing...");
-
-      // Get auth token from parent window or localStorage
-      const token = await this._getAuthToken();
-      const hassUrl = await this._getHassUrl();
-
-      this.pipeline = new HAVoicePipeline(hassUrl, token);
-      this.pipeline.onConnected = () => this._onPipelineConnected();
-      this.pipeline.onSttStart = () => this._onSttStart();
-      this.pipeline.onSttEnd = (data) => this._onSttEnd(data);
-      this.pipeline.onIntentStart = () => this._onIntentStart();
-      this.pipeline.onIntentEnd = (data) => this._onIntentEnd(data);
-      this.pipeline.onTtsStart = () => this._onTtsStart();
-      this.pipeline.onTtsEnd = (data) => this._onTtsEnd(data);
-      this.pipeline.onRunEnd = (data) => this._onRunEnd(data);
-      this.pipeline.onError = (error) => this._handleError(error);
-
-      await this.pipeline.connect();
-      await this.audio.start();
-
-      this._updateStateUI("Ready");
-      this._setState("LISTENING");
-      this._startListening();
-    } catch (error) {
-      console.error("Initialization failed:", error);
-      this._handleError(error);
-    }
-  }
-
-  async _getAuthToken() {
-    const embedded = window.self !== window.top;
-
-    if (embedded) {
-      // Running inside the HA panel iframe: always wait for a fresh
-      // token from the parent instead of trusting a possibly-expired
-      // one cached in localStorage from a previous session.
-      const fresh = await this._waitForToken(8000);
-      if (fresh) return fresh;
-    }
-
-    const stored = localStorage.getItem("ha_auth_token");
-    if (stored) return stored;
-
-    throw new Error("Auth token not received");
-  }
-
-  _waitForToken(timeoutMs) {
-    return new Promise((resolve) => {
-      if (this.latestToken) {
-        resolve(this.latestToken);
+      await this._connectPipeline();
+      const supportError = globalThis.AudioCapture.getSupportError();
+      if (supportError) {
+        this._handleError(supportError, { recoverable: false });
         return;
       }
-      const interval = setInterval(() => {
-        if (this.latestToken) {
-          clearInterval(interval);
-          clearTimeout(timeoutId);
-          resolve(this.latestToken);
-        }
-      }, 100);
-      const timeoutId = setTimeout(() => {
-        clearInterval(interval);
-        resolve(null);
-      }, timeoutMs);
-    });
+      this._setState("READY");
+      this._updateStateUI("Bereit", "Einmal tippen, um das Mikrofon zu aktivieren");
+      this._showStartButton("Mikrofon starten");
+    } catch (error) {
+      this.initialized = false;
+      this._handleError(error, { recoverable: true });
+    }
   }
 
-  async _getHassUrl() {
-    if (this.latestHassUrl) return this.latestHassUrl;
-    const stored = localStorage.getItem("ha_url");
-    if (stored) return stored;
-    return window.location.origin;
+  async activate() {
+    if (this.starting || this.destroyed) return;
+    this.starting = true;
+    this.startBtn.disabled = true;
+    this.startBtn.textContent = "Wird aktiviert …";
+
+    try {
+      if (!this.pipeline?.connected) await this._connectPipeline();
+      if (!this.audio.isRecording) await this.audio.start();
+      this.userActivated = true;
+      this.startOverlay.classList.remove("visible");
+      await this._startListening();
+    } catch (error) {
+      this._handleError(error, { recoverable: false });
+      this._showStartButton("Erneut versuchen");
+    } finally {
+      this.starting = false;
+      this.startBtn.disabled = false;
+    }
   }
 
-  _onPipelineConnected() {
-    // Pipeline/VAD sensitivity are configured on the device page under
-    // Settings -> Voice assistants -> Devices, nothing to do here.
+  async _connectPipeline() {
+    const { token, hassUrl } = await this._getAuth();
+    this.pipeline?.disconnect();
+    this.pipeline = new globalThis.HAVoicePipeline(hassUrl, token);
+    this.pipeline.onSttStart = () => this._onSttStart();
+    this.pipeline.onSttEnd = (data) => this._onSttEnd(data);
+    this.pipeline.onIntentStart = () => this._onIntentStart();
+    this.pipeline.onIntentEnd = (data) => this._onIntentEnd(data);
+    this.pipeline.onTtsStart = () => this._onTtsStart();
+    this.pipeline.onTtsEnd = (data) => this._onTtsEnd(data);
+    this.pipeline.onRunEnd = (data) => this._onRunEnd(data);
+    this.pipeline.onError = (error) => this._handleError(error, { recoverable: true });
+    await this.pipeline.connect();
   }
 
-  _startListening() {
+  async _getAuth() {
+    if (this.authProvider) {
+      const auth = await this.authProvider();
+      if (auth?.token) {
+        this.updateAuth(auth.token, auth.hassUrl);
+        return { token: auth.token, hassUrl: auth.hassUrl || window.location.origin };
+      }
+    }
+    if (this.latestToken) {
+      return {
+        token: this.latestToken,
+        hassUrl: this.latestHassUrl || window.location.origin,
+      };
+    }
+
+    if (document.documentElement.dataset.voiceStandalone === "true") {
+      window.location.replace("/ha_always_on_voice");
+      return new Promise(() => {});
+    }
+    throw new Error("Keine Home-Assistant-Anmeldung verfügbar. Öffne Voice Assist über die Seitenleiste.");
+  }
+
+  async _startListening() {
+    if (!this.pipeline?.connected || !this.audio.isRecording || this.destroyed) return;
+    clearTimeout(this.restartTimer);
+    this.currentTtsAudio = null;
+    this.ttsEnded = true;
+    this.runEnded = false;
+    this.runFailed = false;
+    this._setState("STARTING");
+    this._updateStateUI("Einen Moment", "Spracherkennung wird gestartet …");
+    await this.pipeline.startPipeline(this.audio.sampleRate);
     this._setState("LISTENING");
-    this._updateStateUI("Listening...");
+    this._updateStateUI("Ich höre zu", "Sprich einfach los");
     this.assistResponse.textContent = "";
     this.userTranscript.textContent = "";
-    this._startPipeline();
     this._startVisualization();
   }
 
-  async _startPipeline() {
-    try {
-      await this.pipeline.startPipeline();
-    } catch (error) {
-      this._handleError(error);
+  _onAudioData(data) {
+    if (this.state === "LISTENING" || this.state === "HEARING") {
+      this.pipeline?.sendAudio(data);
     }
-  }
-
-  _onAudioData(int16Data) {
-    if (this.state !== "LISTENING" && this.state !== "VAD_ACTIVE") {
-      return;
-    }
-    this.pipeline.sendAudio(int16Data);
   }
 
   _onSttStart() {
-    if (this.state === "LISTENING") {
-      this._setState("VAD_ACTIVE");
-      this._updateStateUI("Hearing you...");
-    }
+    this._setState("HEARING");
+    this._updateStateUI("Ich höre dich", "Sprich deinen Satz zu Ende");
   }
 
   _onSttEnd(data) {
-    this.currentTranscript = data.transcript || "";
-    this.userTranscript.textContent = `"${this.currentTranscript}"`;
-    this._setState("VAD_ACTIVE");
-    this.pipeline.endAudio();
+    const transcript = data.transcript?.trim() || "";
+    this.userTranscript.textContent = transcript ? `„${transcript}“` : "";
+    this.pipeline?.endAudio();
   }
 
   _onIntentStart() {
     this._setState("PROCESSING");
-    this._updateStateUI("Processing...");
+    this._updateStateUI("Wird verarbeitet", "Home Assistant denkt nach …");
   }
 
   _onIntentEnd(data) {
-    if (data.responseText) {
-      this.assistResponse.textContent = data.responseText;
-    }
+    this.assistResponse.textContent = data.responseText || "";
   }
 
   _onTtsStart() {
     this._setState("SPEAKING");
-    this._updateStateUI("Speaking...");
+    this._updateStateUI("Antwort", "Home Assistant spricht");
   }
 
   _onTtsEnd(data) {
-    if (data.url) {
-      this._playTTS(data.url);
-    }
+    if (data.url) this._playTTS(data.url);
   }
 
   _onRunEnd(data) {
-    this._stopVisualization();
-    if (data.success) {
-      // After TTS plays, go back to listening
-      setTimeout(() => {
-        this._startListening();
-      }, 500);
-    } else {
-      this._handleError(new Error("Pipeline run failed"));
+    this.runEnded = true;
+    if (this.runFailed) return;
+    if (!data.success) {
+      this._handleError(new Error("Die Sprachverarbeitung wurde abgebrochen."), { recoverable: true });
+      return;
     }
+    if (this.ttsEnded) this._scheduleNextListening();
   }
 
   _playTTS(ttsUrl) {
-    const audio = new Audio(ttsUrl);
+    this.ttsEnded = false;
+    const audio = new Audio(new URL(ttsUrl, this.latestHassUrl || window.location.origin));
+    this.currentTtsAudio = audio;
 
-    // Connect TTS audio to analyser for visualization
-    if (this.audio.audioContext) {
+    if (this.audio.audioContext && this.audio.analyser) {
       try {
-        const track = this.audio.audioContext.createMediaElementSource(audio);
-        track.connect(this.audio.analyser);
-        this.audio.analyser.connect(this.audio.audioContext.destination);
+        const source = this.audio.audioContext.createMediaElementSource(audio);
+        source.connect(this.audio.analyser);
+        source.connect(this.audio.audioContext.destination);
       } catch (error) {
-        console.error("Failed to connect TTS to analyser:", error);
-        // Fallback: just play without visualization
+        console.debug("TTS visualization unavailable", error);
       }
     }
 
-    audio.onended = () => {
-      // Auto-restart listening
+    const finish = () => {
+      if (this.currentTtsAudio !== audio) return;
+      this.ttsEnded = true;
+      this.pipeline?.notifyTtsFinished();
+      if (this.runEnded) this._scheduleNextListening();
     };
-
-    audio.onerror = (error) => {
-      console.error("TTS playback error:", error);
-      this._handleError(error);
+    audio.onended = finish;
+    audio.onerror = () => {
+      console.error("TTS playback failed");
+      finish();
     };
-
     audio.play().catch((error) => {
-      console.error("Failed to play TTS:", error);
+      console.error("TTS playback was blocked", error);
+      finish();
     });
   }
 
-  _startVisualization() {
-    const draw = () => {
-      if (!this.audio.analyser) {
-        this.animationId = requestAnimationFrame(draw);
-        return;
-      }
-
-      const frequencyData = this.audio.getFrequencyData();
-      this._drawFrequencyRing(frequencyData);
-      this.animationId = requestAnimationFrame(draw);
-    };
-
-    this.animationId = requestAnimationFrame(draw);
+  _scheduleNextListening() {
+    if (this.restartTimer || this.destroyed) return;
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      this._startListening().catch((error) => {
+        this._handleError(error, { recoverable: true });
+      });
+    }, 400);
   }
 
-  _stopVisualization() {
-    if (this.animationId) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-    }
-
-    // Clear canvas
-    this.canvasCtx.clearRect(0, 0, this.frequencyCanvas.width, this.frequencyCanvas.height);
-  }
-
-  _drawFrequencyRing(frequencyData) {
-    const w = this.frequencyCanvas.width;
-    const h = this.frequencyCanvas.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const radius = 70;
-    const maxBarHeight = 50;
-
-    // Clear
-    this.canvasCtx.clearRect(0, 0, w, h);
-
-    // Determine color based on state
-    let color = "#00d4aa"; // default listening
-    if (this.state === "VAD_ACTIVE") {
-      color = "#10b981";
-    } else if (this.state === "PROCESSING") {
-      color = "#f59e0b";
-    } else if (this.state === "SPEAKING") {
-      color = "#7c3aed";
-    }
-
-    // Draw frequency bars
-    frequencyData.forEach((val, i) => {
-      const angle = (i / frequencyData.length) * Math.PI * 2;
-      const barHeight = (val / 255) * maxBarHeight;
-
-      const x1 = cx + Math.cos(angle) * radius;
-      const y1 = cy + Math.sin(angle) * radius;
-      const x2 = cx + Math.cos(angle) * (radius + barHeight);
-      const y2 = cy + Math.sin(angle) * (radius + barHeight);
-
-      this.canvasCtx.strokeStyle = color;
-      this.canvasCtx.lineWidth = 2;
-      this.canvasCtx.globalAlpha = 0.7 + (val / 255) * 0.3;
-      this.canvasCtx.beginPath();
-      this.canvasCtx.moveTo(x1, y1);
-      this.canvasCtx.lineTo(x2, y2);
-      this.canvasCtx.stroke();
-    });
-
-    this.canvasCtx.globalAlpha = 1.0;
-  }
-
-  async _testMicrophone() {
-    this.testMicBtn.disabled = true;
-    this.testMicBtn.textContent = "Testing...";
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      this.testMicBtn.textContent = "✓ Microphone OK";
-      setTimeout(() => {
-        this.testMicBtn.textContent = "Test Microphone";
-        this.testMicBtn.disabled = false;
-      }, 2000);
-    } catch (error) {
-      this.testMicBtn.textContent = "✗ Mic Error";
-      setTimeout(() => {
-        this.testMicBtn.textContent = "Test Microphone";
-        this.testMicBtn.disabled = false;
-      }, 2000);
-      console.error("Mic test failed:", error);
-    }
-  }
-
-  _handleError(error) {
-    console.error("Error:", error);
+  _handleError(error, { recoverable = false } = {}) {
+    if (this.destroyed) return;
+    const normalized = error instanceof Error ? error : new Error("Unbekannter Fehler.");
+    console.error("Voice Assist error", normalized);
+    this.runFailed = true;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    this.currentTtsAudio?.pause();
+    this.currentTtsAudio = null;
+    this.ttsEnded = true;
     this._setState("ERROR");
-    this._updateStateUI(`Error: ${error.message}`);
+    this._updateStateUI("Verbindung unterbrochen", normalized.message);
+    this._stopVisualization();
+    this.pipeline?.endAudio();
 
-    if (/token|password|auth/i.test(error.message || "")) {
-      // Stale/expired token — drop the cache so we don't immediately
-      // fail the same way again on reconnect.
-      localStorage.removeItem("ha_auth_token");
+    if (/token|password|auth|anmeldung/i.test(normalized.message)) {
       this.latestToken = null;
     }
+    if (recoverable) this._scheduleReconnect();
+  }
 
-    // Try to recover after 3 seconds by fully reconnecting (fresh auth +
-    // a new pipeline connection), not just restarting the pipeline run
-    // on a connection that may itself be broken.
-    setTimeout(() => {
-      this._reconnect().catch((e) => console.error("Failed to recover:", e));
+  _scheduleReconnect() {
+    if (this.reconnectTimer || this.reconnecting || this.destroyed) return;
+    this._updateStateUI("Verbindung unterbrochen", "Neuer Versuch in 3 Sekunden …");
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this._reconnect();
     }, 3000);
   }
 
   async _reconnect() {
-    this._stopVisualization();
-    this.audio.stop();
-    if (this.pipeline) {
-      this.pipeline.disconnect();
-      this.pipeline = null;
+    if (this.reconnecting || this.destroyed) return;
+    this.reconnecting = true;
+    let retryError = null;
+    this._setState("CONNECTING");
+    this._updateStateUI("Neu verbinden", "Home Assistant wird kontaktiert …");
+    try {
+      await this._connectPipeline();
+      if (this.userActivated && this.audio.isRecording) {
+        await this._startListening();
+      } else {
+        this._setState("READY");
+        this._updateStateUI("Bereit", "Einmal tippen, um das Mikrofon zu aktivieren");
+        this._showStartButton("Mikrofon starten");
+      }
+    } catch (error) {
+      retryError = error;
+    } finally {
+      this.reconnecting = false;
     }
-    await this.init();
+    if (retryError) this._handleError(retryError, { recoverable: true });
   }
 
-  _setState(newState) {
-    this.state = newState;
-    this.container.className = `state-${newState.toLowerCase()}`;
+  _startVisualization() {
+    if (this.animationId) return;
+    const draw = () => {
+      this._drawFrequencyRing(this.audio.getFrequencyData());
+      this.animationId = requestAnimationFrame(draw);
+    };
+    this.animationId = requestAnimationFrame(draw);
   }
 
-  _updateStateUI(text) {
-    this.stateIndicator.textContent = text;
+  _stopVisualization() {
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    this.animationId = null;
+    const canvas = this.frequencyCanvas;
+    this.canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  _drawFrequencyRing(frequencyData) {
+    const canvas = this.frequencyCanvas;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.max(1, Math.round(rect.width * dpr));
+    const pixelHeight = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    const ctx = this.canvasCtx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    if (!frequencyData.length) return;
+
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const radius = Math.min(rect.width, rect.height) * 0.285;
+    const colors = {
+      LISTENING: ["#70f5d0", "#38bdf8"],
+      HEARING: ["#a7f3d0", "#22d3ee"],
+      PROCESSING: ["#fcd34d", "#fb7185"],
+      SPEAKING: ["#c4b5fd", "#60a5fa"],
+      ERROR: ["#fda4af", "#fb7185"],
+    };
+    const [startColor, endColor] = colors[this.state] || colors.LISTENING;
+    const gradient = ctx.createLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius);
+    gradient.addColorStop(0, startColor);
+    gradient.addColorStop(1, endColor);
+    ctx.strokeStyle = gradient;
+    ctx.lineCap = "round";
+
+    for (let i = 0; i < this.smoothedLevels.length; i++) {
+      const bin = Math.floor((i / this.smoothedLevels.length) * Math.min(frequencyData.length, 120));
+      const target = frequencyData[bin] / 255;
+      this.smoothedLevels[i] += (target - this.smoothedLevels[i]) * 0.22;
+      const level = this.smoothedLevels[i];
+      const angle = (i / this.smoothedLevels.length) * Math.PI * 2 - Math.PI / 2;
+      const inner = radius + 5;
+      const outer = inner + 3 + level * 34;
+      ctx.globalAlpha = 0.16 + level * 0.72;
+      ctx.lineWidth = 1.5 + level * 2.4;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+      ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.16;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  async _testMicrophone() {
+    this.testMicBtn.disabled = true;
+    const original = this.testMicBtn.textContent;
+    try {
+      if (this.audio.isRecording) {
+        this.testMicBtn.textContent = "Mikrofon ist aktiv ✓";
+      } else {
+        const supportError = globalThis.AudioCapture.getSupportError();
+        if (supportError) throw supportError;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+        this.testMicBtn.textContent = "Mikrofon funktioniert ✓";
+      }
+    } catch (error) {
+      this.testMicBtn.textContent = error.message || "Mikrofontest fehlgeschlagen";
+    } finally {
+      setTimeout(() => {
+        this.testMicBtn.textContent = original;
+        this.testMicBtn.disabled = false;
+      }, 2400);
+    }
+  }
+
+  _showStartButton(label) {
+    this.startBtn.textContent = label;
+    this.startOverlay.classList.add("visible");
+  }
+
+  _closeSettings() {
+    this.settingsPanel.classList.remove("open");
+    this.settingsPanel.setAttribute("aria-hidden", "true");
+  }
+
+  _setState(state) {
+    this.state = state;
+    this.container.className = `state-${state.toLowerCase()}`;
+  }
+
+  _updateStateUI(title, detail = "") {
+    this.stateIndicator.textContent = title;
+    this.stateDetail.textContent = detail;
   }
 
   destroy() {
+    this.destroyed = true;
+    clearTimeout(this.reconnectTimer);
+    clearTimeout(this.restartTimer);
     this._stopVisualization();
+    this.currentTtsAudio?.pause();
     this.audio.stop();
-    if (this.pipeline) {
-      this.pipeline.disconnect();
-    }
+    this.pipeline?.disconnect();
   }
 }
 
-// Initialize app when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
-  const app = new VoiceAssistApp();
-  app.init().catch((error) => {
-    console.error("Failed to initialize app:", error);
-  });
+globalThis.VoiceAssistApp = VoiceAssistApp;
 
-  // Cleanup on page unload
-  window.addEventListener("beforeunload", () => {
-    app.destroy();
-  });
-});
+function startStandaloneApp() {
+  if (!document.querySelector("#app") || window.__haVoiceApp) return;
+  const app = new VoiceAssistApp();
+  window.__haVoiceApp = app;
+  window.app = app;
+  app.init();
+  window.addEventListener("beforeunload", () => app.destroy(), { once: true });
+}
+
+if (typeof document !== "undefined" && document.documentElement.dataset.voiceStandalone === "true") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startStandaloneApp, { once: true });
+  } else {
+    startStandaloneApp();
+  }
+}
+
+if (typeof module !== "undefined") module.exports = { VoiceAssistApp };

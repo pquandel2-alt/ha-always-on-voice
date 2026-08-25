@@ -1,7 +1,37 @@
+const APP_BASE = "/ha_voice_app";
+const APP_VERSION = "0.4.0";
+
+function loadVoiceScript(name, readyCheck) {
+  if (readyCheck()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-ha-voice-script="${name}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `${APP_BASE}/${name}?v=${APP_VERSION}`;
+    script.dataset.haVoiceScript = name;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Voice asset failed: ${name}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadVoiceAssets() {
+  await loadVoiceScript("ui.js", () => Boolean(globalThis.HAVoiceMarkup));
+  await loadVoiceScript("audio.js", () => Boolean(globalThis.AudioCapture));
+  await loadVoiceScript("ha-ws.js", () => Boolean(globalThis.HAVoicePipeline));
+  await loadVoiceScript("main.js", () => Boolean(globalThis.VoiceAssistApp));
+}
+
 class HaVoicePanel extends HTMLElement {
   set hass(value) {
     this._hass = value;
-    this._maybeSendToken();
+    const token = value?.auth?.accessToken;
+    if (token) this._app?.updateAuth(token, window.location.origin);
+    this._maybeStart();
   }
 
   get hass() {
@@ -9,56 +39,54 @@ class HaVoicePanel extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this._rendered) return;
-    this._rendered = true;
-
-    // Fixed positioning instead of width/height:100% — HA wraps custom
-    // panels in ancestors that don't reliably provide a definite height,
-    // which makes percentage-based sizing collapse to the iframe's
-    // intrinsic default (~150px). Fixed positioning ties us to the
-    // viewport directly instead.
+    if (!this.shadowRoot) {
+      const shadow = this.attachShadow({ mode: "open" });
+      shadow.innerHTML = `
+        <link rel="stylesheet" href="${APP_BASE}/style.css?v=${APP_VERSION}">
+        <div id="voiceMount" class="voice-mount"></div>
+      `;
+    }
     this.style.display = "block";
     this.style.position = "fixed";
     this.style.inset = "0";
     this.style.width = "100vw";
-    this.style.height = "100vh";
-
-    const iframe = document.createElement("iframe");
-    iframe.id = "voice-app";
-    iframe.src = this._getAppUrl();
-    iframe.setAttribute("allow", "microphone");
-    iframe.style.position = "fixed";
-    iframe.style.inset = "0";
-    iframe.style.width = "100vw";
-    iframe.style.height = "100vh";
-    iframe.style.border = "none";
-    iframe.style.display = "block";
-    iframe.addEventListener("load", () => this._maybeSendToken());
-
-    this._iframe = iframe;
-    this.appendChild(iframe);
+    this.style.height = "100dvh";
+    this._assetsReady = loadVoiceAssets()
+      .then(() => {
+        const mount = this.shadowRoot.querySelector("#voiceMount");
+        if (!mount.querySelector("#app")) mount.innerHTML = globalThis.HAVoiceMarkup;
+        return true;
+      })
+      .catch((error) => {
+        console.error("Voice Assist assets failed to load", error);
+        this.shadowRoot.querySelector("#voiceMount").textContent =
+          "Voice Assist konnte nicht geladen werden. Bitte Home Assistant neu laden.";
+        return false;
+      });
+    this._maybeStart();
   }
 
-  _getAppUrl() {
-    return new URL("/ha_voice_app/index.html", window.location.origin).toString();
-  }
+  async _maybeStart() {
+    if (this._started || !this._hass?.auth?.accessToken || !this._assetsReady) return;
+    this._started = true;
+    if (!(await this._assetsReady) || !this.isConnected) return;
 
-  _maybeSendToken() {
-    const iframe = this._iframe;
-    if (!iframe || !iframe.contentWindow) return;
-
-    const token = this._hass?.auth?.accessToken;
-    if (!token) return;
-
-    iframe.contentWindow.postMessage(
-      {
-        type: "HA_AUTH_TOKEN",
-        token,
+    this._app = new globalThis.VoiceAssistApp({
+      root: this.shadowRoot,
+      authProvider: () => ({
+        token: this._hass?.auth?.accessToken,
         hassUrl: window.location.origin,
-      },
-      "*"
-    );
+      }),
+    });
+    this._app.updateAuth(this._hass.auth.accessToken, window.location.origin);
+    await this._app.init();
+  }
+
+  disconnectedCallback() {
+    this._app?.destroy();
   }
 }
 
-customElements.define("ha-voice-panel", HaVoicePanel);
+if (!customElements.get("ha-voice-panel")) {
+  customElements.define("ha-voice-panel", HaVoicePanel);
+}

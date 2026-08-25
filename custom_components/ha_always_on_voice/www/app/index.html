@@ -1,66 +1,30 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-voice-standalone="true">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#1a1a2e" />
-  <meta name="description" content="HA Always-On Voice - Hands-free voice control" />
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d18">
+  <meta name="description" content="Hands-free voice control for Home Assistant">
   <title>Voice Assist</title>
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./style.css" />
-  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
-
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+</head>
+<body>
+  <div id="voiceMount"></div>
+  <script src="./ui.js"></script>
+  <script>document.getElementById("voiceMount").innerHTML = globalThis.HAVoiceMarkup;</script>
+  <script src="./audio.js"></script>
+  <script src="./ha-ws.js"></script>
+  <script src="./main.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(err => {
-          console.error("Service Worker registration failed:", err);
+        navigator.serviceWorker.register("./sw.js").catch((error) => {
+          console.error("Service Worker registration failed", error);
         });
       });
     }
   </script>
-</head>
-<body>
-  <div id="app">
-    <div class="container">
-      <!-- Transcript Display -->
-      <div class="transcript-area">
-        <div class="assist-response" id="assistResponse"></div>
-        <div class="user-transcript" id="userTranscript"></div>
-      </div>
-
-      <!-- Central Animation -->
-      <div class="animation-container">
-        <div class="orb" id="orb"></div>
-        <canvas id="frequencyRing" width="300" height="300"></canvas>
-      </div>
-
-      <!-- State Indicator -->
-      <div class="state-indicator" id="stateIndicator">Initializing...</div>
-
-      <!-- Settings Button -->
-      <button class="settings-btn" id="settingsBtn" title="Settings">⚙️</button>
-
-      <!-- Settings Panel (hidden by default) -->
-      <div class="settings-panel" id="settingsPanel">
-        <div class="settings-header">
-          <h2>Voice Settings</h2>
-          <button class="close-btn" id="closeSettingsBtn">✕</button>
-        </div>
-        <div class="settings-content">
-          <p class="settings-hint">
-            Pipeline &amp; Sprachreaktion: Einstellungen → Sprachassistenten →
-            Geräte → Voice Assist
-          </p>
-          <button id="testMicBtn">Test Microphone</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="./audio.js"></script>
-  <script src="./ha-ws.js"></script>
-  <script src="./main.js"></script>
 </body>
 </html>

@@ -1,11 +1,13 @@
 /**
  * Service Worker for HA Voice Assist PWA
- * Cache-first strategy for shell files, network-first for API calls
+ * Network-first shell caching so fixes are picked up immediately while the
+ * last successful shell remains available as an offline fallback.
  */
 
-const CACHE_NAME = "ha-voice-v3";
+const CACHE_NAME = "ha-voice-v4";
 const SHELL_URLS = [
   "/ha_voice_app/index.html",
+  "/ha_voice_app/ui.js",
   "/ha_voice_app/main.js",
   "/ha_voice_app/audio.js",
   "/ha_voice_app/ha-ws.js",
@@ -45,14 +47,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for shell resources
+  // Network-first prevents an installed PWA from pinning an old frontend.
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
-
-      return fetch(event.request).then((response) => {
+    fetch(event.request).then((response) => {
         // Don't cache non-successful responses
         if (!response || response.status !== 200 || response.type !== "basic") {
           return response;
@@ -65,7 +62,6 @@ self.addEventListener("fetch", (event) => {
         });
 
         return response;
-      });
-    })
+      }).catch(() => caches.match(event.request))
   );
 });

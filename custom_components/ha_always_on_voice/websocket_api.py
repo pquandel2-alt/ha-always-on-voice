@@ -19,7 +19,7 @@ from homeassistant.components import websocket_api
 from homeassistant.components.assist_pipeline import PipelineEvent, PipelineEventType
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, WS_TYPE_RUN
+from .const import DOMAIN, WS_TYPE_RUN, WS_TYPE_TTS_FINISHED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +32,25 @@ _SAMPLE_CHANNELS = 1
 def async_register_websocket_api(hass: HomeAssistant) -> None:
     """Register the ha_always_on_voice/run websocket command."""
     websocket_api.async_register_command(hass, websocket_run)
+    websocket_api.async_register_command(hass, websocket_tts_finished)
+
+
+@websocket_api.websocket_command({vol.Required("type"): WS_TYPE_TTS_FINISHED})
+@websocket_api.async_response
+async def websocket_tts_finished(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Mark browser TTS playback as finished on the satellite entity."""
+    satellite = hass.data.get(DOMAIN, {}).get("satellite")
+    if satellite is None:
+        connection.send_error(
+            msg["id"], "satellite_not_ready", "Voice Assist satellite not set up yet"
+        )
+        return
+    satellite.tts_response_finished()
+    connection.send_result(msg["id"])
 
 
 @websocket_api.websocket_command(
@@ -90,7 +109,13 @@ async def websocket_run(
     run_task = hass.async_create_task(
         satellite.async_run_from_browser(stt_stream(), forward_event)
     )
-    connection.subscriptions[msg["id"]] = lambda: audio_queue.put_nowait(b"")
+
+    def cancel_run() -> None:
+        audio_queue.put_nowait(b"")
+        if not run_task.done():
+            run_task.cancel()
+
+    connection.subscriptions[msg["id"]] = cancel_run
 
     try:
         await run_task
@@ -104,4 +129,6 @@ async def websocket_run(
             ),
         )
     finally:
+        if connection.subscriptions.get(msg["id"]) is cancel_run:
+            connection.subscriptions.pop(msg["id"], None)
         unregister_handler()

@@ -1,6 +1,5 @@
 /**
- * Audio capture module: handles getUserMedia, AudioContext setup,
- * and float32→int16 PCM conversion for HA Whisper pipeline.
+ * Microphone capture and PCM conversion for Home Assistant's Assist pipeline.
  */
 
 class AudioCapture {
@@ -8,59 +7,92 @@ class AudioCapture {
     this.audioContext = null;
     this.mediaStream = null;
     this.scriptProcessor = null;
+    this.silentGain = null;
     this.analyser = null;
     this.source = null;
     this.isRecording = false;
     this.onAudioData = null;
-    this.onError = null;
     this.sampleRate = 16000;
   }
 
+  static getSupportError() {
+    if (!window.isSecureContext) {
+      return new Error(
+        "Mikrofonzugriff benötigt HTTPS. Öffne Home Assistant über eine sichere https://-Adresse."
+      );
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return new Error(
+        "Der Home-Assistant-Webbereich stellt keinen Mikrofonzugriff bereit. Bitte aktualisiere die App und öffne das Panel erneut."
+      );
+    }
+    if (!(window.AudioContext || window.webkitAudioContext)) {
+      return new Error("Audio wird von dieser Browser-Version nicht unterstützt.");
+    }
+    return null;
+  }
+
   async start() {
+    if (this.isRecording) return;
+
+    const supportError = AudioCapture.getSupportError();
+    if (supportError) throw supportError;
+
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: false,
+          autoGainControl: true,
+          channelCount: 1,
         },
       });
 
-      this.audioContext = new AudioContext({ sampleRate: this.sampleRate });
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      try {
+        this.audioContext = new AudioContextClass({ sampleRate: 16000 });
+      } catch (_error) {
+        // Older WebKit versions reject AudioContextOptions.
+        this.audioContext = new AudioContextClass();
+      }
+
+      if (this.audioContext.state === "suspended") {
+        await this.audioContext.resume();
+      }
+
+      this.sampleRate = this.audioContext.sampleRate;
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-      // Create analyser for visualizations
       this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 256;
+      this.analyser.fftSize = 512;
+      this.analyser.smoothingTimeConstant = 0.82;
       this.source.connect(this.analyser);
 
-      // Create script processor for PCM capture
-      const bufferSize = 4096;
-      this.scriptProcessor = this.audioContext.createScriptProcessor(
-        bufferSize,
-        1, // input channels
-        1  // output channels
-      );
+      // ScriptProcessor remains the most broadly supported PCM capture path in
+      // iOS WebViews. A zero-gain output keeps the processor alive without
+      // feeding the microphone back through the speaker.
+      this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      this.silentGain = this.audioContext.createGain();
+      this.silentGain.gain.value = 0;
 
       this.scriptProcessor.onaudioprocess = (event) => {
-        if (!this.isRecording) return;
-
-        const float32Data = event.inputBuffer.getChannelData(0);
-        const int16Data = this._float32ToInt16(float32Data);
-
-        if (this.onAudioData) {
-          this.onAudioData(int16Data);
-        }
+        if (!this.isRecording || !this.onAudioData) return;
+        this.onAudioData(this._float32ToInt16(event.inputBuffer.getChannelData(0)));
       };
 
       this.source.connect(this.scriptProcessor);
-      this.scriptProcessor.connect(this.audioContext.destination);
-
+      this.scriptProcessor.connect(this.silentGain);
+      this.silentGain.connect(this.audioContext.destination);
       this.isRecording = true;
     } catch (error) {
-      console.error("Audio initialization failed:", error);
-      if (this.onError) {
-        this.onError(error);
+      this.stop();
+      if (error?.name === "NotAllowedError") {
+        throw new Error(
+          "Mikrofonzugriff wurde nicht erlaubt. Prüfe die Mikrofonfreigabe für Home Assistant in den iOS-Einstellungen."
+        );
+      }
+      if (error?.name === "NotFoundError") {
+        throw new Error("Auf diesem Gerät wurde kein Mikrofon gefunden.");
       }
       throw error;
     }
@@ -68,34 +100,26 @@ class AudioCapture {
 
   stop() {
     this.isRecording = false;
-
     if (this.scriptProcessor) {
+      this.scriptProcessor.onaudioprocess = null;
       this.scriptProcessor.disconnect();
     }
-    if (this.source) {
-      this.source.disconnect();
-    }
-    if (this.analyser) {
-      this.analyser.disconnect();
-    }
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((track) => track.stop());
-    }
-    if (this.audioContext) {
-      this.audioContext.close();
+    this.silentGain?.disconnect();
+    this.source?.disconnect();
+    this.analyser?.disconnect();
+    this.mediaStream?.getTracks().forEach((track) => track.stop());
+    if (this.audioContext && this.audioContext.state !== "closed") {
+      this.audioContext.close().catch(() => {});
     }
 
     this.audioContext = null;
     this.mediaStream = null;
     this.scriptProcessor = null;
+    this.silentGain = null;
     this.analyser = null;
     this.source = null;
   }
 
-  /**
-   * Get frequency data from analyser for visualization.
-   * Returns Uint8Array of length analyser.frequencyBinCount
-   */
   getFrequencyData() {
     if (!this.analyser) return new Uint8Array(0);
     const data = new Uint8Array(this.analyser.frequencyBinCount);
@@ -103,28 +127,15 @@ class AudioCapture {
     return data;
   }
 
-  /**
-   * Convert Float32Array to Int16Array (PCM format expected by HA).
-   * Float32 range: [-1.0, 1.0]
-   * Int16 range: [-32768, 32767]
-   */
   _float32ToInt16(float32Data) {
     const int16Data = new Int16Array(float32Data.length);
     for (let i = 0; i < float32Data.length; i++) {
-      // Clamp to [-1.0, 1.0] and scale to 16-bit range
-      let sample = float32Data[i];
-      sample = Math.max(-1.0, Math.min(1.0, sample));
-      int16Data[i] = sample < 0
-        ? sample * 32768  // negative: -1.0 → -32768
-        : sample * 32767; // positive: 1.0 → 32767
+      const sample = Math.max(-1, Math.min(1, float32Data[i]));
+      int16Data[i] = sample < 0 ? sample * 32768 : sample * 32767;
     }
     return int16Data;
   }
-
-  /**
-   * Convert Int16Array to ArrayBuffer for WebSocket binary transmission
-   */
-  int16ToBuffer(int16Data) {
-    return int16Data.buffer;
-  }
 }
+
+globalThis.AudioCapture = AudioCapture;
+if (typeof module !== "undefined") module.exports = { AudioCapture };
