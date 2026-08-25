@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterable, Callable
 import logging
 
-from homeassistant.components.assist_pipeline import PipelineEvent
+from homeassistant.components.assist_pipeline import PipelineEvent, async_get_pipeline
 from homeassistant.components.assist_satellite import (
     AssistSatelliteConfiguration,
     AssistSatelliteEntity,
@@ -22,6 +22,7 @@ from homeassistant.components.assist_satellite import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -75,6 +76,33 @@ class AlwaysOnVoiceSatellite(AssistSatelliteEntity):
             "select", DOMAIN, f"{self._entry.entry_id}-vad_sensitivity"
         )
 
+    @property
+    def animation_style(self) -> str:
+        """Return the animation selected for the browser UI."""
+        return self._config_select_value("animation_style", "orb")
+
+    @property
+    def tts_playback(self) -> str:
+        """Return whether browser TTS playback is enabled."""
+        return self._config_select_value("tts_playback", "pipeline")
+
+    @property
+    def tts_engine(self) -> str | None:
+        """Return the TTS engine supplied by the selected Assist pipeline."""
+        try:
+            return async_get_pipeline(self.hass, self._resolve_pipeline()).tts_engine
+        except (HomeAssistantError, KeyError, RuntimeError, ValueError):
+            return None
+
+    def _config_select_value(self, key: str, default: str) -> str:
+        """Read a local configuration select value."""
+        entity_id = er.async_get(self.hass).async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}-{key}"
+        )
+        if entity_id is None or (state := self.hass.states.get(entity_id)) is None:
+            return default
+        return state.state
+
     @callback
     def async_get_configuration(self) -> AssistSatelliteConfiguration:
         """Report no on-device wake words; the browser streams continuously."""
@@ -106,4 +134,8 @@ class AlwaysOnVoiceSatellite(AssistSatelliteEntity):
         try:
             await self.async_accept_pipeline_from_satellite(audio_stream)
         finally:
-            self._event_callback = None
+            # A scheduled long-listening refresh may replace this callback
+            # before the cancelled run unwinds. Do not clear the newer run's
+            # callback from the older run's finally block.
+            if self._event_callback is event_callback:
+                self._event_callback = None

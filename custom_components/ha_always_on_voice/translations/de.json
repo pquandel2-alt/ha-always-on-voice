@@ -13,7 +13,7 @@
   "entity": {
     "select": {
       "pipeline": {
-        "name": "Assistent",
+        "name": "Assist-Pipeline (STT, Agent und TTS)",
         "state": {
           "preferred": "Bevorzugt"
         }
@@ -25,6 +25,26 @@
           "aggressive": "Aggressiv",
           "relaxed": "Entspannt"
         }
+      },
+      "animation_style": {
+        "name": "Animationsstil",
+        "state": {
+          "orb": "Fließende Kugel",
+          "spectrum": "Audio-Spektrum",
+          "minimal": "Minimalistisch"
+        }
+      },
+      "tts_playback": {
+        "name": "Sprachausgabe",
+        "state": {
+          "pipeline": "Aus Assist-Pipeline",
+          "muted": "Stumm"
+        }
+      }
+    },
+    "sensor": {
+      "tts_provider": {
+        "name": "TTS-Anbieter"
       }
     }
   }

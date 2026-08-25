@@ -13,7 +13,7 @@
   "entity": {
     "select": {
       "pipeline": {
-        "name": "Assistant",
+        "name": "Assist pipeline (STT, agent & TTS)",
         "state": {
           "preferred": "Preferred"
         }
@@ -25,6 +25,26 @@
           "aggressive": "Aggressive",
           "relaxed": "Relaxed"
         }
+      },
+      "animation_style": {
+        "name": "Animation style",
+        "state": {
+          "orb": "Fluid orb",
+          "spectrum": "Audio spectrum",
+          "minimal": "Minimal"
+        }
+      },
+      "tts_playback": {
+        "name": "Voice output",
+        "state": {
+          "pipeline": "From Assist pipeline",
+          "muted": "Muted"
+        }
+      }
+    },
+    "sensor": {
+      "tts_provider": {
+        "name": "TTS provider"
       }
     }
   }

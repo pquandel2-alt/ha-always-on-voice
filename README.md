@@ -9,8 +9,10 @@ command or using a wake word.
 - Continuous listening while the panel stays open and in the foreground
 - Local Home Assistant Assist pipeline, including Whisper, conversation agent,
   and TTS
-- Assist Satellite device with pipeline and VAD sensitivity configuration
+- Assist Satellite device with pipeline, VAD, TTS playback, and animation configuration
 - Audio-reactive interface designed for the Home Assistant iOS app
+- Persistent response text that remains visible until the next spoken request
+- iPhone widget/deep-link guidance for one-tap access
 - Automatic recovery after WebSocket interruptions
 - No frontend build step
 
@@ -50,10 +52,34 @@ Microphone permission must also be enabled for Home Assistant under iOS
 
 ## Configuration
 
-Pipeline and finished-speaking sensitivity are configured on the generated
-device:
+Pipeline, finished-speaking sensitivity, browser TTS playback, and animation
+style are configured on the generated device:
 
 **Settings → Voice assistants → Devices → Voice Assist**
+
+The TTS provider itself is part of the selected Assist pipeline. The device
+page shows the currently selected provider as a diagnostic sensor. Change the
+provider under **Settings → Voice assistants → Assistants**, or mute/unmute its
+playback with the device's **TTS playback** selector.
+
+Three animation styles are available: **Orb**, **Spectrum**, and **Minimal**.
+
+## iPhone widget and shortcuts
+
+The official Home Assistant iOS app supplies an **Open Page** widget. Add that
+widget on the Home Screen or Lock Screen and select **Voice Assist** as its
+page. The panel also includes a direct app link:
+
+`homeassistant://navigate/ha_always_on_voice?server=default`
+
+The same link can be placed in an iOS Shortcut or on the Home Screen. A custom
+integration cannot install its own native iOS widget; the official Companion
+App widget is therefore the supported route.
+
+iOS suspends web content and microphone capture when the app is closed or in
+the background. Voice Assist can listen continuously while its panel is open
+in the foreground, but cannot provide a system-wide, always-listening wake word
+on a locked iPhone.
 
 ## Architecture
 
@@ -85,9 +111,18 @@ it again, and tap **Mikrofon starten**.
 - Verify Whisper/STT using Home Assistant's built-in Assist dialog.
 - Check the Home Assistant log for `ha_always_on_voice` or pipeline errors.
 
+### Text appears but there is no speech
+
+- Confirm that the selected Assist pipeline has a TTS provider configured.
+- Check the device's **TTS playback** selector is set to **Use pipeline**.
+- Open the panel settings: it displays the resolved TTS provider or an exact
+  playback error.
+- Tap **Microphone starten** once after reopening the app; iOS requires this
+  gesture to unlock both recording and delayed audio playback.
+
 ### Old frontend remains visible
 
-Version 0.4 uses network-first service-worker caching. Reload Home Assistant or
+Version 0.5 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

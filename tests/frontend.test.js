@@ -20,6 +20,7 @@ function createVoiceApp() {
     textContent: "",
     className: "",
     disabled: false,
+    dataset: {},
     addEventListener() {},
     setAttribute() {},
     classList: { add() {}, remove() {} },
@@ -28,6 +29,7 @@ function createVoiceApp() {
     "#app", "#stateIndicator", "#stateDetail", "#assistResponse",
     "#userTranscript", "#settingsPanel", "#settingsBtn",
     "#closeSettingsBtn", "#testMicBtn", "#startOverlay", "#startBtn",
+    "#ttsSourceLabel",
   ];
   const nodes = Object.fromEntries(selectors.map((selector) => [selector, createNode()]));
   nodes["#frequencyRing"] = {
@@ -92,6 +94,21 @@ test("reports TTS playback completion to the satellite", () => {
   assert.equal(JSON.parse(sent[0]).type, "ha_always_on_voice/tts_finished");
 });
 
+test("forwards the real VAD start event separately from STT startup", () => {
+  const pipeline = new HAVoicePipeline("https://ha.example", "token");
+  let sttStarts = 0;
+  let vadStarts = 0;
+  pipeline.onSttStart = () => sttStarts++;
+  pipeline.onVadStart = () => vadStarts++;
+
+  pipeline._handleMessage({ type: "event", event: { type: "stt-start" } });
+  assert.equal(sttStarts, 1);
+  assert.equal(vadStarts, 0);
+
+  pipeline._handleMessage({ type: "event", event: { type: "stt-vad-start" } });
+  assert.equal(vadStarts, 1);
+});
+
 test("keeps an answer visible until the next request starts", async () => {
   const { app, nodes } = createVoiceApp();
   nodes["#assistResponse"].textContent = "Das Licht ist eingeschaltet.";
@@ -104,8 +121,9 @@ test("keeps an answer visible until the next request starts", async () => {
   await app._startListening();
   assert.equal(nodes["#assistResponse"].textContent, "Das Licht ist eingeschaltet.");
 
-  app._onSttStart();
+  app._onVadStart();
   assert.equal(nodes["#assistResponse"].textContent, "");
+  clearTimeout(app.pipelineRefreshTimer);
 });
 
 test("plays delayed TTS through the already active AudioContext", async () => {
@@ -142,4 +160,40 @@ test("plays delayed TTS through the already active AudioContext", async () => {
   assert.equal(sourceStarted, true);
   assert.equal(notified, 1);
   assert.equal(app.ttsEnded, true);
+});
+
+test("reuses a user-activated media element for delayed iOS TTS", async () => {
+  const { app } = createVoiceApp();
+  let playedUrl = null;
+  let notified = 0;
+  app.latestHassUrl = "https://ha.example";
+  app.pipeline = { notifyTtsFinished: () => notified++ };
+  app.ttsPlayer = {
+    volume: 0,
+    set src(value) {
+      playedUrl = value;
+    },
+    async play() {},
+  };
+
+  await app._playTTS("/api/tts_proxy/test.mp3");
+  assert.equal(playedUrl, "https://ha.example/api/tts_proxy/test.mp3");
+  assert.equal(app.ttsEnded, false);
+
+  app.ttsPlayer.onended();
+  assert.equal(notified, 1);
+  assert.equal(app.ttsEnded, true);
+});
+
+test("applies animation and TTS settings supplied by the device", () => {
+  const { app, nodes } = createVoiceApp();
+  app._applyRunConfiguration({
+    animation_style: "minimal",
+    tts_playback: "pipeline",
+    tts_engine: "tts.piper",
+  });
+
+  assert.equal(app.animationStyle, "minimal");
+  assert.match(nodes["#app"].className, /animation-minimal/);
+  assert.equal(nodes["#ttsSourceLabel"].textContent, "tts.piper");
 });

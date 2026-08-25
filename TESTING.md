@@ -9,7 +9,8 @@ node --test tests/frontend.test.js
 ```
 
 The tests cover PCM conversion, Home Assistant binary-handler framing, stream
-termination, and the TTS-finished notification.
+termination, VAD-based response persistence, TTS playback completion, and
+device-supplied UI configuration.
 
 Before committing, also validate syntax and whitespace:
 
@@ -48,7 +49,9 @@ the panel's top-level document instead of an iframe.
 3. Confirm that the transcript and response appear.
 4. Confirm TTS finishes before listening resumes. The microphone must not
    transcribe the assistant's own response.
-5. Repeat with an entity command such as “Schalte das Licht im Wohnzimmer ein”.
+5. Leave the panel listening. The last response must remain visible until you
+   actually begin speaking again.
+6. Repeat with an entity command such as “Schalte das Licht im Wohnzimmer ein”.
 
 ### Network recovery
 
@@ -70,7 +73,10 @@ the panel's top-level document instead of an iframe.
 
 1. Open the settings button in the lower-right corner.
 2. Run **Mikrofon testen**.
-3. Close the sheet with the × button and verify the main UI remains correctly
+3. Verify the selected TTS source and iPhone quick-access instructions appear.
+4. Change the device animation selector between Orb, Spectrum, and Minimal,
+   begin a new run, and confirm the selected design is rendered.
+5. Close the sheet with the × button and verify the main UI remains correctly
    sized in portrait and landscape orientation.
 
 ## Home Assistant log checks
@@ -90,5 +96,5 @@ After installing a new release:
 
 1. Restart Home Assistant for Python/backend changes.
 2. Fully close and reopen the Companion App once.
-3. Confirm the new frontend is displayed. Version 0.4 and newer use a
+3. Confirm the new frontend is displayed. Version 0.5 and newer use a
    network-first service-worker cache to avoid pinning stale JavaScript.

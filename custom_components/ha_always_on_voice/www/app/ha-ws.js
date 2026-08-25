@@ -15,6 +15,7 @@ class HAVoicePipeline {
     this.pendingCommands = new Map();
 
     this.onSttStart = null;
+    this.onVadStart = null;
     this.onSttEnd = null;
     this.onIntentStart = null;
     this.onIntentEnd = null;
@@ -133,7 +134,7 @@ class HAVoicePipeline {
         throw new Error("Home Assistant hat keinen gültigen Audio-Kanal bereitgestellt.");
       }
       this.binaryHandlerId = handlerId;
-      return id;
+      return { ...result, run_id: id };
     });
   }
 
@@ -206,6 +207,9 @@ class HAVoicePipeline {
     switch (type) {
       case "stt-start":
         this.onSttStart?.();
+        break;
+      case "stt-vad-start":
+        this.onVadStart?.();
         break;
       case "stt-end":
         this.onSttEnd?.({ transcript: data?.stt_output?.text || "" });

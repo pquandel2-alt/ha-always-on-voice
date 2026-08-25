@@ -104,7 +104,15 @@ async def websocket_run(
     def forward_event(event: PipelineEvent) -> None:
         connection.send_event(msg["id"], event)
 
-    connection.send_result(msg["id"], {"stt_binary_handler_id": handler_id})
+    connection.send_result(
+        msg["id"],
+        {
+            "stt_binary_handler_id": handler_id,
+            "animation_style": satellite.animation_style,
+            "tts_playback": satellite.tts_playback,
+            "tts_engine": satellite.tts_engine,
+        },
+    )
 
     run_task = hass.async_create_task(
         satellite.async_run_from_browser(stt_stream(), forward_event)

@@ -1,5 +1,6 @@
 globalThis.HAVoiceMarkup = `
   <div id="app" class="state-idle">
+    <audio id="ttsPlayer" playsinline preload="auto" aria-hidden="true"></audio>
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
 
@@ -60,10 +61,32 @@ globalThis.HAVoiceMarkup = `
         <button class="close-btn" id="closeSettingsBtn" type="button" aria-label="Einstellungen schließen">×</button>
       </div>
       <div class="settings-content">
-        <p class="settings-hint">
-          Pipeline und Erkennungsdauer stellst du in Home Assistant unter
-          Einstellungen → Sprachassistenten → Geräte → Voice Assist ein.
-        </p>
+        <section class="settings-section">
+          <h3>Sprachausgabe und Design</h3>
+          <p class="settings-hint">
+            Assist-Pipeline, Erkennungsdauer, TTS-Wiedergabe und Animation stellst
+            du am Gerät Voice Assist unter Geräte &amp; Dienste ein.
+          </p>
+          <div class="settings-info-row">
+            <span>TTS-Quelle der Pipeline</span>
+            <strong id="ttsSourceLabel">Wird ermittelt …</strong>
+          </div>
+          <a class="settings-link" href="/config/voice-assistants/assistants">
+            Assist-Pipelines verwalten
+          </a>
+        </section>
+        <section class="settings-section">
+          <h3>iPhone-Schnellzugriff</h3>
+          <p class="settings-hint">
+            Füge in iOS das Home-Assistant-Widget „Seite öffnen“ hinzu und wähle
+            als Seite <strong>Voice Assist</strong>. Alternativ kannst du diesen
+            App-Link in einen Kurzbefehl oder auf den Home-Bildschirm legen.
+          </p>
+          <a class="settings-link settings-link-primary"
+             href="homeassistant://navigate/ha_always_on_voice?server=default">
+            Direkt in der HA-App öffnen
+          </a>
+        </section>
         <button id="testMicBtn" type="button">Mikrofon testen</button>
       </div>
     </aside>

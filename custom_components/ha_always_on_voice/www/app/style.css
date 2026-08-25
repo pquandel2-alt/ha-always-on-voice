@@ -27,6 +27,10 @@ body,
   overflow: hidden;
 }
 
+#ttsPlayer {
+  display: none;
+}
+
 body,
 :host {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
@@ -298,6 +302,49 @@ button {
   animation: orb-error 480ms ease-out;
 }
 
+.animation-spectrum .orb {
+  width: 7.2rem;
+  height: 7.2rem;
+  border-radius: 50%;
+  animation: orb-speaking 3.2s ease-in-out infinite;
+}
+
+.animation-spectrum .orb-aura {
+  width: 10rem;
+  height: 10rem;
+  opacity: 0.46;
+}
+
+.animation-spectrum #frequencyRing {
+  width: min(92vw, 24rem);
+  height: min(92vw, 24rem);
+}
+
+.animation-minimal .orb {
+  width: 6.4rem;
+  height: 6.4rem;
+  border-radius: 50%;
+  animation: none;
+  box-shadow: 0 0 3rem rgba(var(--accent-rgb), 0.2);
+}
+
+.animation-minimal .orb-surface {
+  animation: none;
+  background: var(--accent);
+}
+
+.animation-minimal .orb-highlight,
+.animation-minimal .orb-core,
+.animation-minimal .orb-aura,
+.animation-minimal #frequencyRing {
+  display: none;
+}
+
+.animation-minimal.state-hearing .orb,
+.animation-minimal.state-speaking .orb {
+  animation: orb-hearing 1.4s ease-in-out infinite;
+}
+
 @keyframes orb-float {
   0%, 100% { transform: translateY(0) rotate(-2deg) scale(0.98); border-radius: 47% 53% 55% 45% / 48% 45% 55% 52%; }
   50% { transform: translateY(-0.45rem) rotate(3deg) scale(1.02); border-radius: 53% 47% 44% 56% / 54% 51% 49% 46%; }
@@ -520,13 +567,64 @@ button {
 .settings-content {
   max-width: 34rem;
   margin: 1.35rem auto 0;
+  max-height: min(60dvh, 32rem);
+  overflow-y: auto;
+  padding-bottom: 0.15rem;
+}
+
+.settings-section {
+  padding: 0.95rem;
+  margin-bottom: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.settings-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.91rem;
+  font-weight: 650;
 }
 
 .settings-hint {
-  margin: 0 0 1.15rem;
+  margin: 0 0 0.85rem;
   color: var(--muted);
   font-size: 0.84rem;
   line-height: 1.55;
+}
+
+.settings-info-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.8rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.settings-info-row strong {
+  max-width: 56%;
+  color: var(--text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.settings-link {
+  display: block;
+  padding: 0.72rem 0.8rem;
+  border-radius: 0.75rem;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  font-size: 0.8rem;
+  font-weight: 620;
+  text-align: center;
+  text-decoration: none;
+}
+
+.settings-link-primary {
+  color: #07111a;
+  background: var(--accent);
 }
 
 .settings-content button {
