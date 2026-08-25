@@ -19,8 +19,10 @@ class VoiceAssistApp {
     this.reconnectTimer = null;
     this.restartTimer = null;
     this.animationId = null;
-    this.currentTtsAudio = null;
+    this.currentTtsSource = null;
+    this.currentTtsPlaybackId = null;
     this.ttsEnded = true;
+    this.ttsWasRequested = false;
     this.runEnded = false;
     this.runFailed = false;
     this.smoothedLevels = new Float32Array(72);
@@ -160,8 +162,10 @@ class VoiceAssistApp {
   async _startListening() {
     if (!this.pipeline?.connected || !this.audio.isRecording || this.destroyed) return;
     clearTimeout(this.restartTimer);
-    this.currentTtsAudio = null;
+    this.currentTtsSource = null;
+    this.currentTtsPlaybackId = null;
     this.ttsEnded = true;
+    this.ttsWasRequested = false;
     this.runEnded = false;
     this.runFailed = false;
     this._setState("STARTING");
@@ -169,8 +173,6 @@ class VoiceAssistApp {
     await this.pipeline.startPipeline(this.audio.sampleRate);
     this._setState("LISTENING");
     this._updateStateUI("Ich höre zu", "Sprich einfach los");
-    this.assistResponse.textContent = "";
-    this.userTranscript.textContent = "";
     this._startVisualization();
   }
 
@@ -181,6 +183,10 @@ class VoiceAssistApp {
   }
 
   _onSttStart() {
+    // Keep the previous answer visible while idle. Only replace it when the
+    // user actually starts a new request.
+    this.assistResponse.textContent = "";
+    this.userTranscript.textContent = "";
     this._setState("HEARING");
     this._updateStateUI("Ich höre dich", "Sprich deinen Satz zu Ende");
   }
@@ -201,12 +207,17 @@ class VoiceAssistApp {
   }
 
   _onTtsStart() {
+    this.ttsWasRequested = true;
     this._setState("SPEAKING");
     this._updateStateUI("Antwort", "Home Assistant spricht");
   }
 
   _onTtsEnd(data) {
-    if (data.url) this._playTTS(data.url);
+    if (data.url) {
+      this._playTTS(data.url);
+    } else {
+      this._updateStateUI("Antwort", "Die Pipeline hat keine Audiodatei geliefert");
+    }
   }
 
   _onRunEnd(data) {
@@ -216,38 +227,73 @@ class VoiceAssistApp {
       this._handleError(new Error("Die Sprachverarbeitung wurde abgebrochen."), { recoverable: true });
       return;
     }
+    if (!this.ttsWasRequested && this.assistResponse.textContent) {
+      this._updateStateUI("Antwort", "Sprachausgabe ist in dieser Pipeline nicht verfügbar");
+    }
     if (this.ttsEnded) this._scheduleNextListening();
   }
 
-  _playTTS(ttsUrl) {
+  async _playTTS(ttsUrl) {
     this.ttsEnded = false;
-    const audio = new Audio(new URL(ttsUrl, this.latestHassUrl || window.location.origin));
-    this.currentTtsAudio = audio;
-
-    if (this.audio.audioContext && this.audio.analyser) {
-      try {
-        const source = this.audio.audioContext.createMediaElementSource(audio);
-        source.connect(this.audio.analyser);
-        source.connect(this.audio.audioContext.destination);
-      } catch (error) {
-        console.debug("TTS visualization unavailable", error);
-      }
-    }
+    const playbackId = Symbol("tts-playback");
+    this.currentTtsPlaybackId = playbackId;
+    let finished = false;
 
     const finish = () => {
-      if (this.currentTtsAudio !== audio) return;
+      if (finished || this.currentTtsPlaybackId !== playbackId) return;
+      finished = true;
+      this.currentTtsSource = null;
+      this.currentTtsPlaybackId = null;
       this.ttsEnded = true;
       this.pipeline?.notifyTtsFinished();
       if (this.runEnded) this._scheduleNextListening();
     };
-    audio.onended = finish;
-    audio.onerror = () => {
-      console.error("TTS playback failed");
+
+    try {
+      const context = this.audio.audioContext;
+      if (!context || context.state === "closed") {
+        throw new Error("AudioContext ist nicht aktiv");
+      }
+      if (context.state === "suspended") await context.resume();
+
+      const url = new URL(ttsUrl, this.latestHassUrl || window.location.origin);
+      const headers = {};
+      if (this.latestToken && url.origin === window.location.origin) {
+        headers.Authorization = `Bearer ${this.latestToken}`;
+      }
+      const response = await fetch(url, {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error(`TTS-Audio konnte nicht geladen werden (${response.status})`);
+      }
+
+      const audioBuffer = await this._decodeAudioData(context, await response.arrayBuffer());
+      if (this.currentTtsPlaybackId !== playbackId) return;
+
+      const source = context.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audio.analyser);
+      source.connect(context.destination);
+      source.onended = finish;
+      this.currentTtsSource = source;
+      source.start(0);
+    } catch (error) {
+      console.error("TTS playback failed", error);
+      this._updateStateUI(
+        "Antwort",
+        `Sprachausgabe fehlgeschlagen: ${error.message || "unbekannter Fehler"}`
+      );
       finish();
-    };
-    audio.play().catch((error) => {
-      console.error("TTS playback was blocked", error);
-      finish();
+    }
+  }
+
+  _decodeAudioData(context, arrayBuffer) {
+    return new Promise((resolve, reject) => {
+      const result = context.decodeAudioData(arrayBuffer, resolve, reject);
+      if (result?.then) result.then(resolve, reject);
     });
   }
 
@@ -268,8 +314,15 @@ class VoiceAssistApp {
     this.runFailed = true;
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
-    this.currentTtsAudio?.pause();
-    this.currentTtsAudio = null;
+    if (this.currentTtsSource) {
+      try {
+        this.currentTtsSource.stop();
+      } catch (_error) {
+        // Already stopped.
+      }
+    }
+    this.currentTtsSource = null;
+    this.currentTtsPlaybackId = null;
     this.ttsEnded = true;
     this._setState("ERROR");
     this._updateStateUI("Verbindung unterbrochen", normalized.message);
@@ -434,7 +487,13 @@ class VoiceAssistApp {
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.restartTimer);
     this._stopVisualization();
-    this.currentTtsAudio?.pause();
+    if (this.currentTtsSource) {
+      try {
+        this.currentTtsSource.stop();
+      } catch (_error) {
+        // Already stopped.
+      }
+    }
     this.audio.stop();
     this.pipeline?.disconnect();
   }
