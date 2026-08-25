@@ -77,9 +77,12 @@ The **Voice output** selector offers three modes:
 - **iPhone / browser voice** always uses the device's system speech synthesis.
 - **Muted** disables spoken responses.
 
-Six animation styles are available: **Fluid orb**, **Audio spectrum**,
-**Aurora flow**, **Pulse rings**, **Constellation**, and **Minimal**. Changes to
-the animation selector are pushed to an open HA Voice Control panel immediately.
+Seven animation styles are available: **Fluid orb**, **Liquid equalizer**,
+**Audio spectrum**, **Aurora flow**, **Pulse rings**, **Constellation**, and
+**Minimal**. The Liquid equalizer uses live microphone frequencies to deform
+the fluid surface, changes from turquoise to blue while the user speaks, and
+turns violet with a speech-like pulse during voice output. Changes to the
+animation selector are pushed to an open HA Voice Control panel immediately.
 
 The panel also lets each phone choose its browser voice, output volume, and
 speech rate. These three settings are stored locally on that device. The system
@@ -147,7 +150,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 1.0.0 uses network-first service-worker caching. Reload Home Assistant or
+Version 1.1.0 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

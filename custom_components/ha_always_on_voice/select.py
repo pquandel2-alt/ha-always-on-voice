@@ -99,7 +99,15 @@ class AlwaysOnVoiceAnimationStyleSelect(_RestoredConfigSelect):
         translation_key="animation_style",
         entity_category=EntityCategory.CONFIG,
     )
-    _attr_options = ["orb", "spectrum", "aurora", "pulse", "constellation", "minimal"]
+    _attr_options = [
+        "orb",
+        "liquid_equalizer",
+        "spectrum",
+        "aurora",
+        "pulse",
+        "constellation",
+        "minimal",
+    ]
     _attr_current_option = "orb"
 
     def __init__(self, entry: ConfigEntry) -> None:

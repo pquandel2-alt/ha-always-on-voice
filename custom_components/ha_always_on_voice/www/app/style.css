@@ -304,6 +304,7 @@ button {
 }
 
 .svg-aurora,
+.svg-equalizer,
 .svg-constellation,
 .svg-minimal,
 .pulse-rings {
@@ -423,6 +424,53 @@ button {
 
 .animation-spectrum .orbit {
   opacity: 0.18;
+}
+
+.animation-liquid_equalizer .orb {
+  width: 13rem;
+  height: 13rem;
+  animation: none;
+  filter:
+    drop-shadow(0 1.4rem 2.2rem rgba(0, 0, 0, 0.32))
+    drop-shadow(0 0 2.3rem rgba(var(--accent-rgb), 0.3));
+}
+
+.animation-liquid_equalizer .svg-sphere,
+.animation-liquid_equalizer .orbit,
+.animation-liquid_equalizer .pulse-rings,
+.animation-liquid_equalizer #frequencyRing {
+  display: none;
+}
+
+.animation-liquid_equalizer .svg-equalizer {
+  display: block;
+}
+
+.animation-liquid_equalizer .equalizer-color {
+  transition: stop-color 720ms ease;
+}
+
+.animation-liquid_equalizer .equalizer-color-one { stop-color: #edfffb; }
+.animation-liquid_equalizer .equalizer-color-two { stop-color: #8ff4db; }
+.animation-liquid_equalizer .equalizer-color-three { stop-color: #30d5c0; }
+.animation-liquid_equalizer .equalizer-color-four { stop-color: #1686ae; }
+.animation-liquid_equalizer .equalizer-color-five { stop-color: #092c59; }
+
+.animation-liquid_equalizer.state-hearing .equalizer-color-one { stop-color: #ecfeff; }
+.animation-liquid_equalizer.state-hearing .equalizer-color-two { stop-color: #70f4ff; }
+.animation-liquid_equalizer.state-hearing .equalizer-color-three { stop-color: #1cc8f1; }
+.animation-liquid_equalizer.state-hearing .equalizer-color-four { stop-color: #176bd1; }
+.animation-liquid_equalizer.state-hearing .equalizer-color-five { stop-color: #102860; }
+
+.animation-liquid_equalizer.state-speaking .equalizer-color-one { stop-color: #fff4ff; }
+.animation-liquid_equalizer.state-speaking .equalizer-color-two { stop-color: #ddb7ff; }
+.animation-liquid_equalizer.state-speaking .equalizer-color-three { stop-color: #a978f7; }
+.animation-liquid_equalizer.state-speaking .equalizer-color-four { stop-color: #654bdc; }
+.animation-liquid_equalizer.state-speaking .equalizer-color-five { stop-color: #272466; }
+
+.animation-liquid_equalizer.state-hearing .orb,
+.animation-liquid_equalizer.state-speaking .orb {
+  animation: none;
 }
 
 .animation-aurora .orb {

@@ -24,9 +24,10 @@ function createVoiceApp() {
     value: "",
     disabled: false,
     dataset: {},
+    attributes: {},
     children: [],
     addEventListener() {},
-    setAttribute() {},
+    setAttribute(name, value) { this.attributes[name] = String(value); },
     appendChild(child) { this.children.push(child); },
     replaceChildren() { this.children = []; },
     classList: { add() {}, remove() {}, toggle() {} },
@@ -41,6 +42,10 @@ function createVoiceApp() {
     "#ttsSourceLabel", "#diagMic", "#diagConnection", "#diagPipeline",
     "#diagStt", "#diagTts", "#diagAudio", "#latencyStt",
     "#latencyIntent", "#latencyTts",
+    ".voice-core-svg", "#equalizerMainPath", "#equalizerClipPath",
+    "#equalizerRimPath", "#equalizerShadowRim", "#equalizerAuraPath",
+    "#equalizerLightField", "#equalizerDarkField", "#equalizerSpecular",
+    "#equalizerWaveOne", "#equalizerWaveTwo",
   ];
   const nodes = Object.fromEntries(selectors.map((selector) => [selector, createNode()]));
   nodes["#frequencyRing"] = {
@@ -69,6 +74,10 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.match(markup, /class="voice-core-svg"/);
   assert.match(markup, /clipPath id="sphereClip"/);
   assert.match(markup, /clipPath id="auroraClip"/);
+  assert.match(markup, /clipPath id="equalizerClip"/);
+  assert.match(markup, /id="equalizerMainPath"/);
+  assert.match(styles, /animation-liquid_equalizer/);
+  assert.match(styles, /state-speaking \.equalizer-color-three/);
   assert.match(markup, /animate attributeName="d"/);
   assert.match(markup, /repeatCount="indefinite"/);
   assert.match(markup, /class="svg-specular"/);
@@ -448,11 +457,32 @@ test("applies animation and TTS settings supplied by the device", () => {
   assert.equal(app.ttsPlayback, "browser");
   assert.equal(nodes["#ttsSourceLabel"].textContent, "iPhone-/Browser-Stimme");
 
-  for (const style of ["orb", "spectrum", "aurora", "pulse", "constellation", "minimal"]) {
+  for (const style of [
+    "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal",
+  ]) {
     app._applyRunConfiguration({ animation_style: style });
     assert.equal(app.animationStyle, style);
     assert.match(nodes["#app"].className, new RegExp(`animation-${style}`));
   }
+});
+
+test("deforms the liquid equalizer from live speech frequencies", () => {
+  const { app, nodes } = createVoiceApp();
+  app.animationStyle = "liquid_equalizer";
+  app.state = "HEARING";
+  app._now = () => 1000;
+  const loudSpeech = new Uint8Array(128).fill(170);
+
+  app._drawFrequencyRing(loudSpeech);
+  const firstPath = nodes["#equalizerMainPath"].attributes.d;
+  assert.match(firstPath, /^M /);
+  assert.match(firstPath, / Q /);
+
+  app._now = () => 1480;
+  app._drawFrequencyRing(new Uint8Array(128).fill(35));
+  const secondPath = nodes["#equalizerMainPath"].attributes.d;
+  assert.notEqual(secondPath, firstPath);
+  assert.equal(nodes["#equalizerClipPath"].attributes.d, secondPath);
 });
 
 test("renders live Home Assistant configuration as direct settings", () => {

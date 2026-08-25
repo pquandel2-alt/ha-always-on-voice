@@ -81,13 +81,15 @@ the panel's top-level document instead of an iframe.
    STT, TTS, and audio results appear.
 3. Change pipeline, VAD, animation, and voice output directly in the sheet and
    verify the device selectors update.
-4. Change the browser voice, volume, and speech rate and confirm the next spoken
+4. Select **Liquid Equalizer** and confirm it is turquoise while idle, deforms
+   in blue from live speech, and pulses violet during voice output.
+5. Change the browser voice, volume, and speech rate and confirm the next spoken
    response uses those settings.
-5. Verify the iPhone quick-access note recommends the official Home Assistant
+6. Verify the iPhone quick-access note recommends the official Home Assistant
    **Open Page** widget and no duplicate shortcut button is shown.
-6. Close the sheet with the × button and verify the main UI remains correctly
+7. Close the sheet with the × button and verify the main UI remains correctly
    sized in portrait and landscape orientation.
-7. Tap the upper-left back button and confirm the previous Home Assistant page
+8. Tap the upper-left back button and confirm the previous Home Assistant page
    opens.
 
 ## Home Assistant log checks

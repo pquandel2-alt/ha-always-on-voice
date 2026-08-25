@@ -74,6 +74,20 @@ class VoiceAssistApp {
     this.ttsSourceLabel = root.querySelector("#ttsSourceLabel");
     this.frequencyCanvas = root.querySelector("#frequencyRing");
     this.voiceCore = root.querySelector(".voice-core-svg");
+    this.equalizerPaths = {
+      main: root.querySelector("#equalizerMainPath"),
+      clip: root.querySelector("#equalizerClipPath"),
+      rim: root.querySelector("#equalizerRimPath"),
+      shadow: root.querySelector("#equalizerShadowRim"),
+      aura: root.querySelector("#equalizerAuraPath"),
+      light: root.querySelector("#equalizerLightField"),
+      dark: root.querySelector("#equalizerDarkField"),
+      specular: root.querySelector("#equalizerSpecular"),
+      waveOne: root.querySelector("#equalizerWaveOne"),
+      waveTwo: root.querySelector("#equalizerWaveTwo"),
+    };
+    this.equalizerBands = new Float32Array(12);
+    this.equalizerEnergy = 0.08;
     this.canvasCtx = this.frequencyCanvas.getContext("2d");
 
     if (!this.container) throw new Error("HA Voice Control UI wurde nicht gefunden.");
@@ -226,6 +240,7 @@ class VoiceAssistApp {
       aggressive: "Aggressiv",
       relaxed: "Entspannt",
       orb: "Realistische Liquid-Kugel",
+      liquid_equalizer: "Liquid Equalizer",
       spectrum: "Audio-Spektrum",
       aurora: "Aurora-Fluss",
       pulse: "Puls-Ringe",
@@ -871,7 +886,7 @@ class VoiceAssistApp {
 
   _applyRunConfiguration(config = {}) {
     const allowedStyles = new Set([
-      "orb", "spectrum", "aurora", "pulse", "constellation", "minimal",
+      "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal",
     ]);
     this.animationStyle = allowedStyles.has(config.animation_style)
       ? config.animation_style
@@ -1004,6 +1019,10 @@ class VoiceAssistApp {
   }
 
   _drawFrequencyRing(frequencyData) {
+    if (this.animationStyle === "liquid_equalizer") {
+      this._drawLiquidEqualizer(frequencyData);
+      return;
+    }
     const canvas = this.frequencyCanvas;
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1064,6 +1083,130 @@ class VoiceAssistApp {
     ctx.arc(cx, cy, radius + 18, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
+  }
+
+  _smoothClosedPath(points) {
+    const last = points[points.length - 1];
+    const first = points[0];
+    const firstMid = {
+      x: (first.x + last.x) / 2,
+      y: (first.y + last.y) / 2,
+    };
+    let path = `M ${firstMid.x.toFixed(2)} ${firstMid.y.toFixed(2)}`;
+    for (let index = 0; index < points.length; index++) {
+      const point = points[index];
+      const next = points[(index + 1) % points.length];
+      const middleX = (point.x + next.x) / 2;
+      const middleY = (point.y + next.y) / 2;
+      path += ` Q ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+      path += ` ${middleX.toFixed(2)} ${middleY.toFixed(2)}`;
+    }
+    return `${path} Z`;
+  }
+
+  _drawLiquidEqualizer(frequencyData) {
+    const paths = this.equalizerPaths;
+    if (!paths?.main) return;
+    const time = this._now() / 1000;
+    const hearing = this.state === "HEARING";
+    const speaking = this.state === "SPEAKING";
+    const active = hearing || speaking;
+    const usableBins = Math.min(frequencyData.length, 120);
+    let average = 0;
+    for (let index = 2; index < usableBins; index++) average += frequencyData[index];
+    average = usableBins > 2 ? average / (usableBins - 2) / 255 : 0;
+
+    const microphonePulse = Math.min(1, Math.max(0, (average - 0.018) * 6.5));
+    const syntheticPulse = speaking
+      ? 0.38 + 0.62 * Math.abs(Math.sin(time * 3.9) * Math.cos(time * 1.75))
+      : 0;
+    const voicePulse = hearing
+      ? microphonePulse
+      : (speaking && microphonePulse > 0.1 ? microphonePulse : syntheticPulse);
+    const targetEnergy = active ? 0.14 + voicePulse * 0.86 : 0.08;
+    this.equalizerEnergy += (targetEnergy - this.equalizerEnergy) * (active ? 0.16 : 0.06);
+
+    for (let band = 0; band < this.equalizerBands.length; band++) {
+      const startBin = Math.floor((band / this.equalizerBands.length) * usableBins);
+      const endBin = Math.max(
+        startBin + 1,
+        Math.floor(((band + 1) / this.equalizerBands.length) * usableBins)
+      );
+      let bandAverage = 0;
+      for (let bin = startBin; bin < endBin; bin++) bandAverage += frequencyData[bin] || 0;
+      bandAverage = (bandAverage / Math.max(1, endBin - startBin)) / 255;
+      const measuredBand = Math.min(1, Math.max(0, (bandAverage - 0.018) * 4.8));
+      const frequency = speaking ? 2.8 + band * 0.13 : 4.1 + band * 0.19;
+      const phase = band * 1.73 + Math.sin(time * 0.61 + band) * 0.7;
+      const simulatedBand = Math.abs(Math.sin(time * frequency + phase)) * this.equalizerEnergy;
+      const targetBand = active
+        ? (measuredBand > 0.08 ? measuredBand : simulatedBand * voicePulse)
+        : 0;
+      this.equalizerBands[band] += (targetBand - this.equalizerBands[band])
+        * (active ? 0.24 : 0.08);
+    }
+
+    const points = [];
+    const count = 56;
+    const baseRadius = 63 + this.equalizerEnergy * 3;
+    const equalizerScale = active ? 0.9 + voicePulse * 0.18 : 1;
+    for (let index = 0; index < count; index++) {
+      const angle = (index / count) * Math.PI * 2;
+      const bandPosition = (index / count) * this.equalizerBands.length;
+      const bandIndex = Math.floor(bandPosition) % this.equalizerBands.length;
+      const nextBand = (bandIndex + 1) % this.equalizerBands.length;
+      const bandMix = bandPosition - Math.floor(bandPosition);
+      const bandEnergy = this.equalizerBands[bandIndex] * (1 - bandMix)
+        + this.equalizerBands[nextBand] * bandMix;
+      const deformation = active
+        ? (bandEnergy - this.equalizerEnergy * 0.3) * (10 + voicePulse * 6)
+        : 0;
+      const slowFlow = Math.sin(angle * 2 + time * 0.72)
+        * (3.1 + this.equalizerEnergy * 7.8);
+      const crossFlow = Math.sin(angle * 3 - time * 1.06 + 0.8)
+        * (1.8 + this.equalizerEnergy * 4.7);
+      const surface = Math.sin(angle * 5 + time * 1.55) * this.equalizerEnergy * 2.4;
+      const breathing = Math.sin(time * 1.28) * 1.4;
+      const radius = (baseRadius + slowFlow + crossFlow + surface + breathing)
+        * equalizerScale + deformation;
+      const stretchX = 1 + Math.sin(time * 0.64) * 0.04
+        + this.equalizerEnergy * Math.sin(time * 2.1) * 0.075;
+      const stretchY = 1 + Math.cos(time * 0.58) * 0.035
+        - this.equalizerEnergy * Math.sin(time * 2.1) * 0.06;
+      points.push({
+        x: 100 + Math.cos(angle) * radius * stretchX,
+        y: 100 + Math.sin(angle) * radius * stretchY,
+      });
+    }
+
+    const path = this._smoothClosedPath(points);
+    for (const element of [paths.main, paths.clip, paths.rim, paths.shadow, paths.aura]) {
+      element?.setAttribute("d", path);
+    }
+    const auraScale = 1.12 + this.equalizerEnergy * 0.08;
+    paths.aura?.setAttribute(
+      "transform",
+      `translate(100 100) scale(${auraScale.toFixed(3)}) translate(-100 -100)`
+    );
+    const driftX = Math.sin(time * 0.53) * 10 + this.equalizerEnergy * Math.sin(time * 2.7) * 5;
+    const driftY = Math.cos(time * 0.47) * 8 + this.equalizerEnergy * Math.cos(time * 2.2) * 4;
+    paths.light?.setAttribute("transform", `translate(${driftX.toFixed(2)} ${driftY.toFixed(2)})`);
+    paths.dark?.setAttribute(
+      "transform",
+      `translate(${(-driftX * 0.72).toFixed(2)} ${(-driftY * 0.58).toFixed(2)})`
+    );
+    paths.specular?.setAttribute(
+      "transform",
+      `translate(${(driftX * 0.28).toFixed(2)} ${(driftY * 0.22).toFixed(2)}) rotate(-28 67 57)`
+    );
+    paths.waveOne?.setAttribute(
+      "transform",
+      `translate(${(Math.sin(time * 0.8) * 7).toFixed(2)} ${(Math.cos(time * 0.9) * 5).toFixed(2)})`
+    );
+    paths.waveTwo?.setAttribute(
+      "transform",
+      `translate(${(Math.sin(time * 0.64 + 2) * -6).toFixed(2)} ${(Math.cos(time * 0.7) * -4).toFixed(2)})`
+    );
   }
 
   _showStartButton(label) {

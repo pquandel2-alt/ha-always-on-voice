@@ -103,6 +103,33 @@ globalThis.HAVoiceMarkup = `
                 <stop offset="0" stop-color="#5543e0" stop-opacity="0.46"/>
                 <stop offset="1" stop-color="#6555e8" stop-opacity="0"/>
               </radialGradient>
+              <linearGradient id="equalizerShell" x1="12%" y1="5%" x2="88%" y2="96%">
+                <stop class="equalizer-color equalizer-color-one" offset="0"/>
+                <stop class="equalizer-color equalizer-color-two" offset="0.18"/>
+                <stop class="equalizer-color equalizer-color-three" offset="0.46"/>
+                <stop class="equalizer-color equalizer-color-four" offset="0.72"/>
+                <stop class="equalizer-color equalizer-color-five" offset="1"/>
+              </linearGradient>
+              <radialGradient id="equalizerPearl" cx="42%" cy="36%" r="65%">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.76"/>
+                <stop offset="0.24" stop-color="#effffb" stop-opacity="0.22"/>
+                <stop offset="0.58" stop-color="#baffef" stop-opacity="0.04"/>
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="equalizerDepth" cx="68%" cy="76%" r="74%">
+                <stop offset="0" stop-color="#03162f" stop-opacity="0.86"/>
+                <stop offset="0.36" stop-color="#073b66" stop-opacity="0.56"/>
+                <stop offset="1" stop-color="#0d355e" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="equalizerCaustic" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0" stop-color="#dffff8" stop-opacity="0"/>
+                <stop offset="0.44" stop-color="#f1fffc" stop-opacity="0.72"/>
+                <stop offset="0.72" stop-color="#a4ffec" stop-opacity="0.22"/>
+                <stop offset="1" stop-color="#dffff8" stop-opacity="0"/>
+              </linearGradient>
+              <filter id="equalizerGlow" x="-45%" y="-45%" width="190%" height="190%">
+                <feGaussianBlur stdDeviation="8"/>
+              </filter>
               <path id="fluidShape" d="M100 12 C151 8 188 45 187 98 C186 149 151 187 100 188 C49 189 13 152 13 101 C13 50 49 16 100 12 Z">
                 <animate attributeName="d" dur="7s" repeatCount="indefinite"
                   calcMode="spline" keyTimes="0;0.33;0.66;1"
@@ -114,6 +141,9 @@ globalThis.HAVoiceMarkup = `
               </path>
               <clipPath id="sphereClip"><use href="#fluidShape"/></clipPath>
               <clipPath id="auroraClip"><rect x="9" y="38" width="182" height="124" rx="62"/></clipPath>
+              <clipPath id="equalizerClip">
+                <path id="equalizerClipPath" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"/>
+              </clipPath>
             </defs>
 
             <g class="svg-design svg-sphere">
@@ -133,6 +163,27 @@ globalThis.HAVoiceMarkup = `
               </g>
               <use href="#fluidShape" fill="none" stroke="#03111f" stroke-opacity="0.4" stroke-width="3"/>
               <use href="#fluidShape" fill="none" stroke="url(#rimLight)" stroke-width="1.5"/>
+            </g>
+
+            <g class="svg-design svg-equalizer">
+              <path id="equalizerAuraPath" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
+                fill="var(--accent)" opacity="0.22" filter="url(#equalizerGlow)"
+                transform="translate(100 100) scale(1.14) translate(-100 -100)"/>
+              <path id="equalizerMainPath" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
+                fill="url(#equalizerShell)"/>
+              <g clip-path="url(#equalizerClip)">
+                <ellipse id="equalizerLightField" cx="70" cy="61" rx="76" ry="54" fill="url(#equalizerPearl)"/>
+                <ellipse id="equalizerDarkField" cx="137" cy="143" rx="82" ry="67" fill="url(#equalizerDepth)"/>
+                <path id="equalizerWaveOne" d="M18 96 C50 70 75 88 101 70 C130 51 158 65 185 89"
+                  fill="none" stroke="url(#equalizerCaustic)" stroke-width="3.2" stroke-linecap="round"/>
+                <path id="equalizerWaveTwo" d="M22 124 C55 103 85 118 113 96 C140 76 163 88 186 104"
+                  fill="none" stroke="url(#equalizerCaustic)" stroke-width="1.5" stroke-linecap="round" opacity="0.58"/>
+                <ellipse id="equalizerSpecular" cx="67" cy="57" rx="27" ry="18" fill="url(#equalizerPearl)" transform="rotate(-28 67 57)"/>
+              </g>
+              <path id="equalizerShadowRim" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
+                fill="none" stroke="#020b18" stroke-opacity="0.62" stroke-width="3"/>
+              <path id="equalizerRimPath" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
+                fill="none" stroke="#d9fff7" stroke-opacity="0.48" stroke-width="1.2"/>
             </g>
 
             <g class="svg-design svg-aurora">

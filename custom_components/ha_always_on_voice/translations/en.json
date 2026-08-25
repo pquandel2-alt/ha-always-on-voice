@@ -30,6 +30,7 @@
         "name": "Animation style",
         "state": {
           "orb": "Fluid orb",
+          "liquid_equalizer": "Liquid equalizer",
           "spectrum": "Audio spectrum",
           "aurora": "Aurora flow",
           "pulse": "Pulse rings",

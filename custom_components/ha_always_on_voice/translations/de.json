@@ -30,6 +30,7 @@
         "name": "Animationsstil",
         "state": {
           "orb": "Fließende Kugel",
+          "liquid_equalizer": "Liquid Equalizer",
           "spectrum": "Audio-Spektrum",
           "aurora": "Aurora-Fluss",
           "pulse": "Puls-Ringe",
