@@ -13,6 +13,7 @@ command or using a wake word.
 - Audio-reactive interface designed for the Home Assistant iOS app
 - Persistent response text that remains visible until the next spoken request
 - iPhone widget/deep-link guidance for one-tap access
+- Bundled Voice Assist integration icon on Home Assistant 2026.3 and newer
 - Automatic recovery after WebSocket interruptions
 - No frontend build step
 
@@ -63,6 +64,11 @@ provider under **Settings → Voice assistants → Assistants**, or mute/unmute 
 playback with the device's **TTS playback** selector.
 
 Three animation styles are available: **Orb**, **Spectrum**, and **Minimal**.
+
+Home Assistant 2026.3 and newer loads the bundled integration symbol directly
+from `custom_components/ha_always_on_voice/brand/`. On older versions, Home
+Assistant may continue to show its generic missing-logo placeholder even though
+the integration itself remains functional.
 
 ## iPhone widget and shortcuts
 
