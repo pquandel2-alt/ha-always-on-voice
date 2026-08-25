@@ -73,7 +73,9 @@ The **Voice output** selector offers three modes:
 - **iPhone / browser voice** always uses the device's system speech synthesis.
 - **Muted** disables spoken responses.
 
-Three animation styles are available: **Orb**, **Spectrum**, and **Minimal**.
+Six animation styles are available: **Fluid orb**, **Audio spectrum**,
+**Aurora flow**, **Pulse rings**, **Constellation**, and **Minimal**. Changes to
+the animation selector are pushed to an open Voice Assist panel immediately.
 
 Home Assistant 2026.3 and newer loads the bundled integration symbol directly
 from `custom_components/ha_always_on_voice/brand/`. On older versions, Home
@@ -144,7 +146,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 0.7 uses network-first service-worker caching. Reload Home Assistant or
+Version 0.8 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

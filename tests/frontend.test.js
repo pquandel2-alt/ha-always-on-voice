@@ -94,6 +94,34 @@ test("reports TTS playback completion to the satellite", () => {
   assert.equal(JSON.parse(sent[0]).type, "ha_always_on_voice/tts_finished");
 });
 
+test("subscribes to live device configuration updates", async () => {
+  const sent = [];
+  const pipeline = new HAVoicePipeline("https://ha.example", "token");
+  pipeline.connected = true;
+  pipeline.ws = {
+    readyState: WebSocket.OPEN,
+    send: (value) => sent.push(value),
+  };
+  let received = null;
+  pipeline.onConfiguration = (config) => {
+    received = config;
+  };
+
+  const subscribed = pipeline.subscribeConfiguration();
+  const command = JSON.parse(sent.shift());
+  assert.equal(command.type, "ha_always_on_voice/subscribe_config");
+  pipeline._handleMessage({ id: command.id, type: "result", success: true });
+  await subscribed;
+  pipeline._handleMessage({
+    id: command.id,
+    type: "event",
+    event: { animation_style: "aurora", tts_playback: "browser" },
+  });
+
+  assert.equal(received.animation_style, "aurora");
+  assert.equal(received.tts_playback, "browser");
+});
+
 test("forwards the real VAD start event separately from STT startup", () => {
   const pipeline = new HAVoicePipeline("https://ha.example", "token");
   let sttStarts = 0;
@@ -308,4 +336,10 @@ test("applies animation and TTS settings supplied by the device", () => {
   app._applyRunConfiguration({ tts_playback: "browser" });
   assert.equal(app.ttsPlayback, "browser");
   assert.equal(nodes["#ttsSourceLabel"].textContent, "iPhone-/Browser-Stimme");
+
+  for (const style of ["orb", "spectrum", "aurora", "pulse", "constellation", "minimal"]) {
+    app._applyRunConfiguration({ animation_style: style });
+    assert.equal(app.animationStyle, style);
+    assert.match(nodes["#app"].className, new RegExp(`animation-${style}`));
+  }
 });

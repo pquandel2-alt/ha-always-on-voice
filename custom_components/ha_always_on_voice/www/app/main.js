@@ -162,8 +162,10 @@ class VoiceAssistApp {
     this.pipeline.onTtsStart = (data) => this._onTtsStart(data);
     this.pipeline.onTtsEnd = (data) => this._onTtsEnd(data);
     this.pipeline.onRunEnd = (data) => this._onRunEnd(data);
+    this.pipeline.onConfiguration = (config) => this._applyRunConfiguration(config);
     this.pipeline.onError = (error) => this._handleError(error, { recoverable: true });
     await this.pipeline.connect();
+    await this.pipeline.subscribeConfiguration();
   }
 
   async _getAuth() {
@@ -517,7 +519,9 @@ class VoiceAssistApp {
   }
 
   _applyRunConfiguration(config = {}) {
-    const allowedStyles = new Set(["orb", "spectrum", "minimal"]);
+    const allowedStyles = new Set([
+      "orb", "spectrum", "aurora", "pulse", "constellation", "minimal",
+    ]);
     this.animationStyle = allowedStyles.has(config.animation_style)
       ? config.animation_style
       : "orb";

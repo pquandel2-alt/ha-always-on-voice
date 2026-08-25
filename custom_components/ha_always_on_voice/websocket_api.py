@@ -17,9 +17,15 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.components.assist_pipeline import PipelineEvent, PipelineEventType
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.core import Event, HomeAssistant, callback
 
-from .const import DOMAIN, WS_TYPE_RUN, WS_TYPE_TTS_FINISHED
+from .const import (
+    DOMAIN,
+    WS_TYPE_RUN,
+    WS_TYPE_SUBSCRIBE_CONFIG,
+    WS_TYPE_TTS_FINISHED,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +39,49 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     """Register the ha_always_on_voice/run websocket command."""
     websocket_api.async_register_command(hass, websocket_run)
     websocket_api.async_register_command(hass, websocket_tts_finished)
+    websocket_api.async_register_command(hass, websocket_subscribe_config)
+
+
+def _frontend_configuration(satellite) -> dict:
+    """Return the configuration consumed by the browser UI."""
+    return {
+        "animation_style": satellite.animation_style,
+        "tts_playback": satellite.tts_playback,
+        "tts_engine": satellite.tts_engine,
+    }
+
+
+@websocket_api.websocket_command({vol.Required("type"): WS_TYPE_SUBSCRIBE_CONFIG})
+@websocket_api.async_response
+async def websocket_subscribe_config(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Push device configuration changes to an already open voice panel."""
+    satellite = hass.data.get(DOMAIN, {}).get("satellite")
+    if satellite is None:
+        connection.send_error(
+            msg["id"], "satellite_not_ready", "Voice Assist satellite not set up yet"
+        )
+        return
+
+    watched_entity_ids = {
+        satellite.pipeline_entity_id,
+        satellite.config_entity_id("animation_style"),
+        satellite.config_entity_id("tts_playback"),
+    }
+    watched_entity_ids.discard(None)
+
+    @callback
+    def forward_configuration(event: Event) -> None:
+        if event.data.get("entity_id") in watched_entity_ids:
+            connection.send_event(msg["id"], _frontend_configuration(satellite))
+
+    unsubscribe = hass.bus.async_listen(EVENT_STATE_CHANGED, forward_configuration)
+    connection.subscriptions[msg["id"]] = unsubscribe
+    connection.send_result(msg["id"])
+    connection.send_event(msg["id"], _frontend_configuration(satellite))
 
 
 @websocket_api.websocket_command({vol.Required("type"): WS_TYPE_TTS_FINISHED})
@@ -106,12 +155,7 @@ async def websocket_run(
 
     connection.send_result(
         msg["id"],
-        {
-            "stt_binary_handler_id": handler_id,
-            "animation_style": satellite.animation_style,
-            "tts_playback": satellite.tts_playback,
-            "tts_engine": satellite.tts_engine,
-        },
+        {"stt_binary_handler_id": handler_id, **_frontend_configuration(satellite)},
     )
 
     run_task = hass.async_create_task(

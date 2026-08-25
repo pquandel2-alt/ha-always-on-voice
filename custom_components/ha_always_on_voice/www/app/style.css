@@ -279,7 +279,7 @@ button {
   z-index: 3;
   width: 9.4rem;
   height: 9.4rem;
-  border-radius: 50%;
+  border-radius: 38% 62% 57% 43% / 46% 37% 63% 54%;
   overflow: hidden;
   background: #0a1320;
   border: 1px solid rgba(var(--accent-rgb), 0.38);
@@ -288,20 +288,43 @@ button {
     0 0 3.2rem rgba(var(--accent-rgb), 0.18),
     inset 0 0 0 0.45rem rgba(7, 11, 19, 0.72),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  animation: orb-float 5.5s ease-in-out infinite;
+  animation:
+    orb-float 5.5s ease-in-out infinite,
+    liquid-morph 8s ease-in-out infinite alternate;
   transition: box-shadow 500ms ease, border-color 500ms ease;
 }
 
 .orb-surface {
   position: absolute;
-  inset: 9%;
-  border-radius: 50%;
+  inset: 5%;
+  border-radius: inherit;
   background:
-    radial-gradient(circle at 32% 26%, rgba(255,255,255,0.48), transparent 16%),
-    radial-gradient(circle at 68% 72%, rgba(4,12,24,0.58), transparent 46%),
-    linear-gradient(145deg, #75ead0 0%, var(--accent) 42%, #2775a6 100%);
-  filter: saturate(0.92) contrast(1.05);
-  animation: core-drift 7s ease-in-out infinite alternate;
+    radial-gradient(circle at 29% 24%, rgba(255,255,255,0.62), transparent 13%),
+    radial-gradient(circle at 72% 74%, rgba(3,10,25,0.66), transparent 42%),
+    radial-gradient(circle at 42% 60%, rgba(var(--accent-rgb),0.3), transparent 48%),
+    linear-gradient(145deg, #8cf7dd 0%, var(--accent) 37%, #22618f 100%);
+  filter: saturate(1.04) contrast(1.03);
+  animation: surface-tide 7.5s ease-in-out infinite alternate;
+}
+
+.liquid-layer {
+  position: absolute;
+  inset: -28%;
+  border-radius: 38% 62% 56% 44% / 55% 42% 58% 45%;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+.liquid-layer-one {
+  background: radial-gradient(ellipse at 35% 42%, rgba(255, 255, 255, 0.48), transparent 45%);
+  opacity: 0.58;
+  animation: liquid-current 10s linear infinite;
+}
+
+.liquid-layer-two {
+  background: radial-gradient(ellipse at 66% 57%, rgba(6, 27, 58, 0.88), transparent 48%);
+  opacity: 0.72;
+  animation: liquid-current-reverse 13s linear infinite;
 }
 
 .orb-highlight {
@@ -324,6 +347,11 @@ button {
   filter: blur(0.65rem);
   opacity: 0.72;
   box-shadow: 0 0 1.8rem rgba(var(--accent-rgb), 0.8);
+}
+
+.orb-stars,
+.pulse-rings {
+  display: none;
 }
 
 .orbit {
@@ -367,7 +395,7 @@ button {
 }
 
 .state-hearing .orb {
-  animation: orb-hearing 1.25s ease-in-out infinite;
+  animation: orb-hearing 1.25s ease-in-out infinite, liquid-morph 4.2s ease-in-out infinite alternate;
 }
 
 .state-processing .orb-surface {
@@ -375,11 +403,11 @@ button {
 }
 
 .state-processing .orb {
-  animation: orb-process 2.6s ease-in-out infinite;
+  animation: orb-process 2.6s ease-in-out infinite, liquid-morph 3.4s ease-in-out infinite alternate;
 }
 
 .state-speaking .orb {
-  animation: orb-speaking 1.1s ease-in-out infinite;
+  animation: orb-speaking 1.1s ease-in-out infinite, liquid-morph 3.2s ease-in-out infinite alternate;
 }
 
 .state-error .orb {
@@ -404,6 +432,155 @@ button {
   height: min(92vw, 24rem);
 }
 
+.animation-spectrum .orbit {
+  opacity: 0.18;
+}
+
+.animation-spectrum .liquid-layer {
+  display: none;
+}
+
+.animation-aurora .orb {
+  width: 11.2rem;
+  height: 7.2rem;
+  border: 0;
+  border-radius: 58% 42% 64% 36% / 48% 61% 39% 52%;
+  box-shadow: 0 0 4.8rem rgba(var(--accent-rgb), 0.27);
+  animation: aurora-hover 6s ease-in-out infinite, liquid-morph 7s ease-in-out infinite alternate;
+}
+
+.animation-aurora .orb-surface {
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 45%, rgba(103, 232, 249, 0.9), transparent 39%),
+    radial-gradient(ellipse at 75% 38%, rgba(167, 139, 250, 0.88), transparent 44%),
+    linear-gradient(110deg, #0f766e, #38bdf8 47%, #7c3aed);
+  filter: blur(0.08rem) saturate(1.18);
+  animation: aurora-surface 8s ease-in-out infinite alternate;
+}
+
+.animation-aurora .orb-core,
+.animation-aurora .orb-highlight {
+  display: none;
+}
+
+.animation-aurora .orbit-outer {
+  width: 17rem;
+  height: 9.6rem;
+  border-style: solid;
+  opacity: 0.42;
+}
+
+.animation-aurora .orbit-inner,
+.animation-aurora #frequencyRing {
+  display: none;
+}
+
+.animation-pulse .orb {
+  width: 5.8rem;
+  height: 5.8rem;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent-rgb), 0.55);
+  animation: pulse-core 2.4s ease-in-out infinite;
+}
+
+.animation-pulse .orb-surface {
+  inset: 12%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #d7fff8, var(--accent) 35%, #184b68 100%);
+  animation: none;
+}
+
+.animation-pulse .liquid-layer,
+.animation-pulse .orb-highlight,
+.animation-pulse .orb-core,
+.animation-pulse .orbit,
+.animation-pulse #frequencyRing {
+  display: none;
+}
+
+.animation-pulse .pulse-rings {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  width: 6rem;
+  height: 6rem;
+  place-items: center;
+}
+
+.animation-pulse .pulse-rings span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(var(--accent-rgb), 0.42);
+  border-radius: 50%;
+  animation: pulse-expand 3.3s ease-out infinite;
+}
+
+.animation-pulse .pulse-rings span:nth-child(2) { animation-delay: -1.1s; }
+.animation-pulse .pulse-rings span:nth-child(3) { animation-delay: -2.2s; }
+
+.animation-constellation .orb {
+  width: 10.8rem;
+  height: 10.8rem;
+  border-radius: 50%;
+  background: rgba(7, 15, 29, 0.88);
+  border-color: rgba(125, 211, 252, 0.38);
+  animation: constellation-float 8s ease-in-out infinite;
+}
+
+.animation-constellation .orb-surface {
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0.44;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(125, 211, 252, 0.48), transparent 31%),
+    radial-gradient(circle at 68% 68%, rgba(167, 139, 250, 0.4), transparent 38%),
+    #08111f;
+  animation: constellation-turn 18s linear infinite;
+}
+
+.animation-constellation .liquid-layer,
+.animation-constellation .orb-highlight,
+.animation-constellation .orb-core,
+.animation-constellation #frequencyRing {
+  display: none;
+}
+
+.animation-constellation .orb-stars {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.animation-constellation .orb-stars::before,
+.animation-constellation .orb-stars::after {
+  content: "";
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.52), transparent);
+  transform-origin: left center;
+}
+
+.animation-constellation .orb-stars::before { top: 38%; left: 26%; width: 48%; transform: rotate(24deg); }
+.animation-constellation .orb-stars::after { top: 64%; left: 18%; width: 55%; transform: rotate(-34deg); }
+
+.animation-constellation .orb-stars i {
+  position: absolute;
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 50%;
+  background: #d9f7ff;
+  box-shadow: 0 0 0.8rem #7dd3fc;
+  animation: star-twinkle 2.8s ease-in-out infinite alternate;
+}
+
+.animation-constellation .orb-stars i:nth-child(1) { top: 24%; left: 31%; }
+.animation-constellation .orb-stars i:nth-child(2) { top: 39%; left: 68%; animation-delay: -0.8s; }
+.animation-constellation .orb-stars i:nth-child(3) { top: 67%; left: 48%; animation-delay: -1.6s; }
+.animation-constellation .orb-stars i:nth-child(4) { top: 57%; left: 21%; animation-delay: -2.2s; }
+.animation-constellation .orb-stars i:nth-child(5) { top: 72%; left: 73%; animation-delay: -1.1s; }
+.animation-constellation .orb-stars i:nth-child(6) { top: 18%; left: 57%; animation-delay: -2.5s; }
+
 .animation-minimal .orb {
   width: 6.4rem;
   height: 6.4rem;
@@ -419,6 +596,9 @@ button {
 
 .animation-minimal .orb-highlight,
 .animation-minimal .orb-core,
+.animation-minimal .liquid-layer,
+.animation-minimal .pulse-rings,
+.animation-minimal .orb-stars,
 .animation-minimal .orb-aura,
 .animation-minimal .orbit,
 .animation-minimal #frequencyRing {
@@ -434,6 +614,50 @@ button {
   0%, 100% { transform: translateY(0) scale(0.99); }
   50% { transform: translateY(-0.28rem) scale(1.012); }
 }
+
+@keyframes liquid-morph {
+  0% { border-radius: 38% 62% 57% 43% / 46% 37% 63% 54%; }
+  33% { border-radius: 64% 36% 43% 57% / 35% 58% 42% 65%; }
+  66% { border-radius: 45% 55% 67% 33% / 63% 39% 61% 37%; }
+  100% { border-radius: 58% 42% 36% 64% / 52% 66% 34% 48%; }
+}
+
+@keyframes surface-tide {
+  0% { transform: scale(0.97) rotate(-5deg); background-position: 0% 30%; }
+  50% { transform: scale(1.035) rotate(3deg); background-position: 55% 65%; }
+  100% { transform: scale(0.985) rotate(7deg); background-position: 100% 35%; }
+}
+
+@keyframes liquid-current { to { transform: rotate(360deg) scale(1.08); } }
+@keyframes liquid-current-reverse { to { transform: rotate(-360deg) scale(0.94); } }
+
+@keyframes aurora-hover {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-0.45rem) rotate(3deg); }
+}
+
+@keyframes aurora-surface {
+  0% { transform: translateX(-3%) scale(1.08) rotate(-4deg); filter: hue-rotate(-8deg) saturate(1.15); }
+  100% { transform: translateX(3%) scale(1.12) rotate(5deg); filter: hue-rotate(18deg) saturate(1.35); }
+}
+
+@keyframes pulse-core {
+  0%, 100% { transform: scale(0.94); box-shadow: 0 0 2rem rgba(var(--accent-rgb), 0.25); }
+  50% { transform: scale(1.07); box-shadow: 0 0 4.2rem rgba(var(--accent-rgb), 0.5); }
+}
+
+@keyframes pulse-expand {
+  0% { opacity: 0.72; transform: scale(0.88); }
+  100% { opacity: 0; transform: scale(2.85); }
+}
+
+@keyframes constellation-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-0.35rem) rotate(2deg); }
+}
+
+@keyframes constellation-turn { to { transform: rotate(360deg) scale(1.06); } }
+@keyframes star-twinkle { from { opacity: 0.35; transform: scale(0.7); } to { opacity: 1; transform: scale(1.25); } }
 
 @keyframes core-drift {
   from { transform: rotate(-3deg) scale(1); }

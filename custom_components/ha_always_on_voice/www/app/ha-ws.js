@@ -13,6 +13,7 @@ class HAVoicePipeline {
     this.activeRunId = null;
     this.binaryHandlerId = null;
     this.pendingCommands = new Map();
+    this.configurationSubscriptionId = null;
 
     this.onSttStart = null;
     this.onVadStart = null;
@@ -24,6 +25,7 @@ class HAVoicePipeline {
     this.onRunEnd = null;
     this.onError = null;
     this.onConnected = null;
+    this.onConfiguration = null;
   }
 
   async connect() {
@@ -105,6 +107,7 @@ class HAVoicePipeline {
     this.connected = false;
     this.binaryHandlerId = null;
     this.activeRunId = null;
+    this.configurationSubscriptionId = null;
     this._rejectPending(new Error("Verbindung beendet."));
     if (this.ws) {
       this.ws.onclose = null;
@@ -175,6 +178,19 @@ class HAVoicePipeline {
     }));
   }
 
+  subscribeConfiguration() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.connected) {
+      return Promise.reject(new Error("Home Assistant ist nicht verbunden."));
+    }
+    const id = this.msgId++;
+    this.configurationSubscriptionId = id;
+    this.ws.send(JSON.stringify({
+      id,
+      type: "ha_always_on_voice/subscribe_config",
+    }));
+    return this._waitForResult(id);
+  }
+
   _waitForResult(id) {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
@@ -203,6 +219,10 @@ class HAVoicePipeline {
     }
 
     if (message.type !== "event" || !message.event) return;
+    if (message.id === this.configurationSubscriptionId) {
+      this.onConfiguration?.(message.event);
+      return;
+    }
     const { type, data } = message.event;
     switch (type) {
       case "stt-start":

@@ -96,12 +96,16 @@ class AlwaysOnVoiceSatellite(AssistSatelliteEntity):
 
     def _config_select_value(self, key: str, default: str) -> str:
         """Read a local configuration select value."""
-        entity_id = er.async_get(self.hass).async_get_entity_id(
-            "select", DOMAIN, f"{self._entry.entry_id}-{key}"
-        )
+        entity_id = self.config_entity_id(key)
         if entity_id is None or (state := self.hass.states.get(entity_id)) is None:
             return default
         return state.state
+
+    def config_entity_id(self, key: str) -> str | None:
+        """Resolve a local browser configuration select entity."""
+        return er.async_get(self.hass).async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}-{key}"
+        )
 
     @callback
     def async_get_configuration(self) -> AssistSatelliteConfiguration:

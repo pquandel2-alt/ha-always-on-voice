@@ -31,6 +31,9 @@
         "state": {
           "orb": "Fluid orb",
           "spectrum": "Audio spectrum",
+          "aurora": "Aurora flow",
+          "pulse": "Pulse rings",
+          "constellation": "Constellation",
           "minimal": "Minimal"
         }
       },

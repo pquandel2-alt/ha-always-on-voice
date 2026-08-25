@@ -36,10 +36,14 @@ globalThis.HAVoiceMarkup = `
         <canvas id="frequencyRing" aria-hidden="true"></canvas>
         <div class="orbit orbit-outer" aria-hidden="true"><span></span></div>
         <div class="orbit orbit-inner" aria-hidden="true"><span></span></div>
+        <div class="pulse-rings" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="orb" aria-hidden="true">
           <div class="orb-surface"></div>
+          <div class="liquid-layer liquid-layer-one"></div>
+          <div class="liquid-layer liquid-layer-two"></div>
           <div class="orb-highlight"></div>
           <div class="orb-core"></div>
+          <div class="orb-stars"><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </div>
         <div class="start-overlay visible" id="startOverlay">
           <button class="start-btn" id="startBtn" type="button">
