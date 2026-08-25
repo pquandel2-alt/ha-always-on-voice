@@ -15,6 +15,7 @@ command or using a wake word.
 - Persistent response text that remains visible until the next spoken request
 - Automatic iPhone system-voice fallback if Home Assistant TTS fails
 - iPhone widget/deep-link guidance for one-tap access
+- Native back navigation and an in-panel iOS Shortcut creator
 - Bundled Voice Assist integration icon on Home Assistant 2026.3 and newer
 - Automatic recovery after WebSocket interruptions
 - No frontend build step
@@ -40,8 +41,8 @@ therefore cannot capture audio even if the native Assist dialog can.
 3. Open **Settings → Devices & services → Add integration** and select
    **HA Always-On Voice**.
 4. Open **Voice Assist** from the sidebar.
-5. Tap **Microphone starten** once. iOS requires this user gesture before a web
-   page may activate audio capture.
+5. The panel starts the microphone automatically. If iOS requires a user
+   gesture, tap **Microphone starten** once.
 
 ## Home Assistant app setup
 
@@ -81,9 +82,13 @@ the integration itself remains functional.
 
 ## iPhone widget and shortcuts
 
-The official Home Assistant iOS app supplies an **Open Page** widget. Add that
-widget on the Home Screen or Lock Screen and select **Voice Assist** as its
-page. The panel also includes a direct app link:
+The panel settings include **Create Shortcut**, which opens Apple's new-shortcut
+editor. On iOS 18 or newer, add the action **Home Assistant → Open Page**, select
+**Voice Assist**, then use the shortcut details to choose **Add to Home Screen**.
+
+The official Home Assistant iOS app also supplies an **Open Page** widget. Add
+that widget on the Home Screen or Lock Screen and select **Voice Assist** as its
+page. The panel includes this direct app link as a fallback:
 
 `homeassistant://navigate/ha_always_on_voice?server=default`
 
@@ -139,7 +144,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 0.5 uses network-first service-worker caching. Reload Home Assistant or
+Version 0.7 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 

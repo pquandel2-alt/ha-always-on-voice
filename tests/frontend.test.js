@@ -27,7 +27,7 @@ function createVoiceApp() {
   });
   const selectors = [
     "#app", "#stateIndicator", "#stateDetail", "#assistResponse",
-    "#userTranscript", "#settingsPanel", "#settingsBtn",
+    "#userTranscript", "#settingsPanel", "#settingsBtn", "#backBtn",
     "#closeSettingsBtn", "#testMicBtn", "#startOverlay", "#startBtn",
     "#ttsSourceLabel",
   ];
@@ -134,6 +134,25 @@ test("keeps an answer visible until the next request starts", async () => {
   app._onVadStart();
   assert.equal(nodes["#assistResponse"].textContent, "");
   clearTimeout(app.pipelineRefreshTimer);
+});
+
+test("uses browser history for the panel back button", () => {
+  const { app } = createVoiceApp();
+  let wentBack = false;
+  const originalHistory = window.history;
+  window.history = {
+    length: 2,
+    back() {
+      wentBack = true;
+    },
+  };
+
+  try {
+    app._goBack();
+    assert.equal(wentBack, true);
+  } finally {
+    window.history = originalHistory;
+  }
 });
 
 test("tries to start the microphone automatically when the panel opens", async () => {

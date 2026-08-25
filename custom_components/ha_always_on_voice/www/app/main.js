@@ -41,6 +41,7 @@ class VoiceAssistApp {
     this.assistResponse = root.querySelector("#assistResponse");
     this.userTranscript = root.querySelector("#userTranscript");
     this.settingsPanel = root.querySelector("#settingsPanel");
+    this.backBtn = root.querySelector("#backBtn");
     this.settingsBtn = root.querySelector("#settingsBtn");
     this.closeSettingsBtn = root.querySelector("#closeSettingsBtn");
     this.testMicBtn = root.querySelector("#testMicBtn");
@@ -58,6 +59,7 @@ class VoiceAssistApp {
 
   _setupEventListeners() {
     this.audio.onAudioData = (data) => this._onAudioData(data);
+    this.backBtn.addEventListener("click", () => this._goBack());
     this.startBtn.addEventListener("click", () => this.activate());
     this.settingsBtn.addEventListener("click", () => {
       this.settingsPanel.classList.add("open");
@@ -667,21 +669,28 @@ class VoiceAssistApp {
       const bin = Math.floor((i / this.smoothedLevels.length) * Math.min(frequencyData.length, 120));
       const target = frequencyData[bin] / 255;
       this.smoothedLevels[i] += (target - this.smoothedLevels[i]) * 0.22;
-      const level = this.smoothedLevels[i];
+      const level = Math.sqrt(this.smoothedLevels[i]);
       const angle = (i / this.smoothedLevels.length) * Math.PI * 2 - Math.PI / 2;
-      const inner = radius + 5;
-      const outer = inner + 3 + level * 34;
-      ctx.globalAlpha = 0.16 + level * 0.72;
-      ctx.lineWidth = 1.5 + level * 2.4;
+      const inner = radius + 8;
+      const outer = inner + 2 + level * 25;
+      ctx.globalAlpha = 0.1 + level * 0.58;
+      ctx.lineWidth = 1.1 + level * 1.65;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
       ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
       ctx.stroke();
     }
-    ctx.globalAlpha = 0.16;
+    ctx.globalAlpha = 0.13;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.055;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius - 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 18, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -712,6 +721,14 @@ class VoiceAssistApp {
   _showStartButton(label) {
     this.startBtn.textContent = label;
     this.startOverlay.classList.add("visible");
+  }
+
+  _goBack() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign("/");
   }
 
   _closeSettings() {

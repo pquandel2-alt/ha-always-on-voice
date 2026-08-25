@@ -4,14 +4,14 @@
 
 :host,
 :root {
-  --bg: #090d18;
-  --surface: rgba(21, 29, 48, 0.72);
-  --surface-solid: #151d30;
-  --line: rgba(255, 255, 255, 0.09);
-  --text: #f5f8ff;
-  --muted: #8e9ab0;
-  --accent: #58e2c2;
-  --accent-rgb: 88, 226, 194;
+  --bg: #070b13;
+  --surface: rgba(15, 23, 38, 0.82);
+  --surface-solid: #101827;
+  --line: rgba(148, 163, 184, 0.16);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #4de0c1;
+  --accent-rgb: 77, 224, 193;
   color-scheme: dark;
 }
 
@@ -47,8 +47,8 @@ button {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(circle at 50% 48%, rgba(var(--accent-rgb), 0.075), transparent 34%),
-    linear-gradient(155deg, #0c1220 0%, #080c16 58%, #0b1020 100%);
+    radial-gradient(circle at 50% 48%, rgba(var(--accent-rgb), 0.065), transparent 32%),
+    linear-gradient(160deg, #0b1220 0%, #070b13 52%, #09101c 100%);
   transition: --accent 400ms ease;
 }
 
@@ -122,7 +122,12 @@ button {
 .voice-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+}
+
+.brand-copy {
+  min-width: 0;
 }
 
 .voice-header h1,
@@ -144,16 +149,51 @@ button {
 }
 
 .brand-mark {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.35rem;
+  height: 2.35rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.18rem;
   border: 1px solid var(--line);
-  border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.035);
+  border-radius: 0.75rem;
+  background: rgba(148, 163, 184, 0.055);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.header-btn {
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.045);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.header-btn svg {
+  width: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.header-btn:active {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.12);
+  transform: scale(0.96);
+}
+
+.settings-btn {
+  margin-left: auto;
 }
 
 .brand-mark span {
@@ -216,18 +256,19 @@ button {
   position: absolute;
   width: min(84vw, 22rem);
   height: min(84vw, 22rem);
-  opacity: 0.95;
+  z-index: 2;
+  opacity: 0.78;
   pointer-events: none;
 }
 
 .orb-aura {
   position: absolute;
-  width: 12.5rem;
-  height: 12.5rem;
+  width: 13.5rem;
+  height: 13.5rem;
   border-radius: 50%;
-  background: rgba(var(--accent-rgb), 0.19);
-  filter: blur(2.8rem);
-  opacity: 0.72;
+  background: rgba(var(--accent-rgb), 0.16);
+  filter: blur(3.2rem);
+  opacity: 0.58;
   transform: scale(0.88);
   animation: aura-breathe 4.5s ease-in-out infinite;
   transition: background 500ms ease;
@@ -235,51 +276,94 @@ button {
 
 .orb {
   position: relative;
-  width: 9.6rem;
-  height: 9.6rem;
-  border-radius: 47% 53% 55% 45% / 48% 45% 55% 52%;
+  z-index: 3;
+  width: 9.4rem;
+  height: 9.4rem;
+  border-radius: 50%;
   overflow: hidden;
-  background: linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.015));
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #0a1320;
+  border: 1px solid rgba(var(--accent-rgb), 0.38);
   box-shadow:
-    0 1.7rem 4.5rem rgba(0, 0, 0, 0.38),
-    0 0 4rem rgba(var(--accent-rgb), 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  animation: orb-float 8s ease-in-out infinite;
-  transition: box-shadow 500ms ease, border-radius 600ms ease;
+    0 1.75rem 4.5rem rgba(0, 0, 0, 0.42),
+    0 0 3.2rem rgba(var(--accent-rgb), 0.18),
+    inset 0 0 0 0.45rem rgba(7, 11, 19, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  animation: orb-float 5.5s ease-in-out infinite;
+  transition: box-shadow 500ms ease, border-color 500ms ease;
 }
 
 .orb-surface {
   position: absolute;
-  inset: -18%;
-  border-radius: 43% 57% 48% 52%;
+  inset: 9%;
+  border-radius: 50%;
   background:
-    radial-gradient(circle at 30% 22%, rgba(255,255,255,0.42), transparent 18%),
-    radial-gradient(circle at 68% 72%, rgba(10,18,35,0.42), transparent 42%),
-    linear-gradient(145deg, color-mix(in srgb, var(--accent) 94%, white), color-mix(in srgb, var(--accent) 60%, #2852ac));
-  filter: saturate(1.05);
-  animation: surface-drift 7s ease-in-out infinite alternate;
+    radial-gradient(circle at 32% 26%, rgba(255,255,255,0.48), transparent 16%),
+    radial-gradient(circle at 68% 72%, rgba(4,12,24,0.58), transparent 46%),
+    linear-gradient(145deg, #75ead0 0%, var(--accent) 42%, #2775a6 100%);
+  filter: saturate(0.92) contrast(1.05);
+  animation: core-drift 7s ease-in-out infinite alternate;
 }
 
 .orb-highlight {
   position: absolute;
-  top: 12%;
-  left: 17%;
-  width: 38%;
-  height: 20%;
+  top: 16%;
+  left: 21%;
+  width: 34%;
+  height: 13%;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  filter: blur(0.8rem);
+  background: rgba(255, 255, 255, 0.2);
+  filter: blur(0.65rem);
   transform: rotate(-24deg);
 }
 
 .orb-core {
   position: absolute;
-  inset: 35%;
+  inset: 42%;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.44);
-  filter: blur(1.1rem);
-  opacity: 0.55;
+  background: rgba(224, 255, 249, 0.82);
+  filter: blur(0.65rem);
+  opacity: 0.72;
+  box-shadow: 0 0 1.8rem rgba(var(--accent-rgb), 0.8);
+}
+
+.orbit {
+  position: absolute;
+  z-index: 1;
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.orbit span {
+  position: absolute;
+  top: 50%;
+  left: -0.2rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0.8rem rgba(var(--accent-rgb), 0.72);
+}
+
+.orbit-outer {
+  width: 15.2rem;
+  height: 15.2rem;
+  border-style: dashed;
+  animation: orbit-rotate 28s linear infinite;
+}
+
+.orbit-inner {
+  width: 12.35rem;
+  height: 12.35rem;
+  opacity: 0.68;
+  animation: orbit-rotate-reverse 18s linear infinite;
+}
+
+.orbit-inner span {
+  top: -0.2rem;
+  left: 50%;
+  width: 0.34rem;
+  height: 0.34rem;
 }
 
 .state-hearing .orb {
@@ -287,7 +371,7 @@ button {
 }
 
 .state-processing .orb-surface {
-  animation-duration: 2.2s;
+  animation-duration: 3.2s;
 }
 
 .state-processing .orb {
@@ -336,6 +420,7 @@ button {
 .animation-minimal .orb-highlight,
 .animation-minimal .orb-core,
 .animation-minimal .orb-aura,
+.animation-minimal .orbit,
 .animation-minimal #frequencyRing {
   display: none;
 }
@@ -346,13 +431,21 @@ button {
 }
 
 @keyframes orb-float {
-  0%, 100% { transform: translateY(0) rotate(-2deg) scale(0.98); border-radius: 47% 53% 55% 45% / 48% 45% 55% 52%; }
-  50% { transform: translateY(-0.45rem) rotate(3deg) scale(1.02); border-radius: 53% 47% 44% 56% / 54% 51% 49% 46%; }
+  0%, 100% { transform: translateY(0) scale(0.99); }
+  50% { transform: translateY(-0.28rem) scale(1.012); }
 }
 
-@keyframes surface-drift {
-  from { transform: translate(-2%, -1%) rotate(-4deg); }
-  to { transform: translate(3%, 2%) rotate(7deg); }
+@keyframes core-drift {
+  from { transform: rotate(-3deg) scale(1); }
+  to { transform: rotate(4deg) scale(1.035); }
+}
+
+@keyframes orbit-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbit-rotate-reverse {
+  to { transform: rotate(-360deg); }
 }
 
 @keyframes aura-breathe {
@@ -429,12 +522,12 @@ button {
   width: min(100%, 31rem);
   min-height: 4.25rem;
   margin: 0 auto;
-  padding: 0.85rem 4.25rem 0.85rem 1rem;
+  padding: 0.9rem 1rem;
   display: flex;
   align-items: center;
   gap: 0.85rem;
   border: 1px solid var(--line);
-  border-radius: 1.15rem;
+  border-radius: 1rem;
   background: var(--surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 1rem 3rem rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(1.5rem);
@@ -478,39 +571,6 @@ button {
   font-size: 0.72rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
-}
-
-.settings-btn {
-  position: absolute;
-  z-index: 20;
-  right: max(2rem, env(safe-area-inset-right));
-  bottom: max(2rem, env(safe-area-inset-bottom));
-  width: 2.55rem;
-  height: 2.55rem;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 0.85rem;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.045);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.settings-btn svg {
-  width: 1.15rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.settings-btn:active {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(0.96);
 }
 
 .settings-panel {
@@ -627,6 +687,24 @@ button {
   background: var(--accent);
 }
 
+.settings-link-secondary {
+  margin-top: 0.55rem;
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.shortcut-steps {
+  margin: 0 0 0.9rem;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.shortcut-steps li + li {
+  margin-top: 0.18rem;
+}
+
 .settings-content button {
   width: 100%;
   border-radius: 0.9rem;
@@ -639,13 +717,14 @@ button {
   }
   .orb { width: 8rem; height: 8rem; }
   .orb-aura { width: 10.5rem; height: 10.5rem; }
+  .orbit-outer { width: 13rem; height: 13rem; }
+  .orbit-inner { width: 10.5rem; height: 10.5rem; }
   #frequencyRing { width: 17.5rem; height: 17.5rem; }
   .animation-container { min-height: 14rem; }
 }
 
 @media (min-width: 700px) {
   .voice-shell { padding-inline: 2rem; }
-  .settings-btn { right: calc(50% - 22rem); }
   .settings-panel {
     left: 50%;
     width: min(36rem, 100%);

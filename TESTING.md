@@ -11,7 +11,8 @@ node --test tests/frontend.test.js
 The tests cover PCM conversion, Home Assistant binary-handler framing, stream
 termination, VAD-based response persistence, TTS playback completion, and
 device-supplied UI configuration. It also verifies automatic microphone startup
-and the iPhone-voice fallback for a Home Assistant TTS HTTP 500 response.
+and the iPhone-voice fallback for a Home Assistant TTS HTTP 500 response, plus
+panel back navigation.
 
 Before committing, also validate syntax and whitespace:
 
@@ -75,13 +76,16 @@ the panel's top-level document instead of an iframe.
 
 ### Settings sheet
 
-1. Open the settings button in the lower-right corner.
+1. Open the settings button in the upper-right corner.
 2. Run **Mikrofon testen**.
 3. Verify the selected TTS source and iPhone quick-access instructions appear.
-4. Change the device animation selector between Orb, Spectrum, and Minimal,
+4. Tap **Kurzbefehl erstellen** and confirm iOS opens a new shortcut editor.
+5. Change the device animation selector between Orb, Spectrum, and Minimal,
    begin a new run, and confirm the selected design is rendered.
-5. Close the sheet with the × button and verify the main UI remains correctly
+6. Close the sheet with the × button and verify the main UI remains correctly
    sized in portrait and landscape orientation.
+7. Tap the upper-left back button and confirm the previous Home Assistant page
+   opens.
 
 ## Home Assistant log checks
 
@@ -100,5 +104,5 @@ After installing a new release:
 
 1. Restart Home Assistant for Python/backend changes.
 2. Fully close and reopen the Companion App once.
-3. Confirm the new frontend is displayed. Version 0.5 and newer use a
+3. Confirm the new frontend is displayed. Version 0.7 and newer use a
    network-first service-worker cache to avoid pinning stale JavaScript.

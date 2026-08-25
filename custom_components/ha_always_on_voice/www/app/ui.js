@@ -6,13 +6,24 @@ globalThis.HAVoiceMarkup = `
 
     <main class="voice-shell">
       <header class="voice-header">
+        <button class="header-btn back-btn" id="backBtn" type="button" aria-label="Zurück">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+        </button>
         <div class="brand-mark" aria-hidden="true">
           <span></span><span></span><span></span>
         </div>
-        <div>
+        <div class="brand-copy">
           <p class="eyebrow">HOME ASSISTANT</p>
           <h1>Voice</h1>
         </div>
+        <button class="header-btn settings-btn" id="settingsBtn" type="button" aria-label="Einstellungen öffnen">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2.12 2.12-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V20h-3v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06-2.12-2.12.06-.06A1.65 1.65 0 0 0 7.2 15a1.65 1.65 0 0 0-1.51-1H5.6v-3h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06L8.93 6l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V4.8h3v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06 2.12 2.12-.06.06A1.65 1.65 0 0 0 20.4 10v.01a1.65 1.65 0 0 0 1.51.99H22v3h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+          </svg>
+        </button>
       </header>
 
       <section class="transcript-area" aria-live="polite">
@@ -23,6 +34,8 @@ globalThis.HAVoiceMarkup = `
       <section class="animation-container" aria-label="Voice Assist Status">
         <div class="orb-aura" aria-hidden="true"></div>
         <canvas id="frequencyRing" aria-hidden="true"></canvas>
+        <div class="orbit orbit-outer" aria-hidden="true"><span></span></div>
+        <div class="orbit orbit-inner" aria-hidden="true"><span></span></div>
         <div class="orb" aria-hidden="true">
           <div class="orb-surface"></div>
           <div class="orb-highlight"></div>
@@ -43,13 +56,6 @@ globalThis.HAVoiceMarkup = `
         </div>
       </section>
     </main>
-
-    <button class="settings-btn" id="settingsBtn" type="button" aria-label="Einstellungen öffnen">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2.12 2.12-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V20h-3v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06-2.12-2.12.06-.06A1.65 1.65 0 0 0 7.2 15a1.65 1.65 0 0 0-1.51-1H5.6v-3h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06L8.93 6l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V4.8h3v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06 2.12 2.12-.06.06A1.65 1.65 0 0 0 20.4 10v.01a1.65 1.65 0 0 0 1.51.99H22v3h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-      </svg>
-    </button>
 
     <aside class="settings-panel" id="settingsPanel" aria-hidden="true">
       <div class="sheet-handle" aria-hidden="true"></div>
@@ -78,13 +84,23 @@ globalThis.HAVoiceMarkup = `
         <section class="settings-section">
           <h3>iPhone-Schnellzugriff</h3>
           <p class="settings-hint">
-            Füge in iOS das Home-Assistant-Widget „Seite öffnen“ hinzu und wähle
-            als Seite <strong>Voice Assist</strong>. Alternativ kannst du diesen
-            App-Link in einen Kurzbefehl oder auf den Home-Bildschirm legen.
+            Erstelle einen iOS-Kurzbefehl mit der Aktion
+            <strong>Home Assistant → Seite öffnen → Voice Assist</strong>.
+            Öffne danach die Kurzbefehl-Details und wähle
+            <strong>Zum Home-Bildschirm</strong>.
           </p>
-          <a class="settings-link settings-link-primary"
+          <ol class="shortcut-steps">
+            <li>„Kurzbefehl erstellen“ öffnen</li>
+            <li>Home Assistant → Seite öffnen wählen</li>
+            <li>Voice Assist auswählen und zum Home-Bildschirm hinzufügen</li>
+          </ol>
+          <a class="settings-link settings-link-primary" id="createShortcutBtn"
+             href="shortcuts://create-shortcut">
+            Kurzbefehl erstellen
+          </a>
+          <a class="settings-link settings-link-secondary"
              href="homeassistant://navigate/ha_always_on_voice?server=default">
-            Direkt in der HA-App öffnen
+            Voice Assist direkt öffnen
           </a>
         </section>
         <button id="testMicBtn" type="button">Mikrofon testen</button>
