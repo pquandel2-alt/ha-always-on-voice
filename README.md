@@ -146,7 +146,7 @@ it again, and tap **Mikrofon starten**.
 
 ### Old frontend remains visible
 
-Version 0.8 uses network-first service-worker caching. Reload Home Assistant or
+Version 0.8.1 uses network-first service-worker caching. Reload Home Assistant or
 fully close and reopen the Companion App once after upgrading from an older
 version.
 
