@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 global.WebSocket = { OPEN: 1 };
 global.window = {
@@ -44,6 +46,22 @@ function createVoiceApp() {
   };
   return { app: new VoiceAssistApp({ root }), nodes };
 }
+
+test("renders vector animation cores without CSS border clipping", () => {
+  const appDir = path.join(
+    __dirname,
+    "../custom_components/ha_always_on_voice/www/app"
+  );
+  const markup = fs.readFileSync(path.join(appDir, "ui.js"), "utf8");
+  const styles = fs.readFileSync(path.join(appDir, "style.css"), "utf8");
+  const orbRule = styles.match(/\.orb \{[\s\S]*?\n\}/)?.[0] || "";
+
+  assert.match(markup, /class="voice-core-svg"/);
+  assert.match(markup, /clipPath id="sphereClip"/);
+  assert.match(markup, /clipPath id="auroraClip"/);
+  assert.doesNotMatch(orbRule, /overflow:\s*hidden/);
+  assert.doesNotMatch(orbRule, /border-radius/);
+});
 
 test("converts normalized float audio to signed 16-bit PCM", () => {
   const capture = new AudioCapture();
