@@ -77,8 +77,6 @@ class VoiceAssistApp {
     this.equalizerPaths = {
       main: root.querySelector("#equalizerMainPath"),
       clip: root.querySelector("#equalizerClipPath"),
-      rim: root.querySelector("#equalizerRimPath"),
-      shadow: root.querySelector("#equalizerShadowRim"),
       aura: root.querySelector("#equalizerAuraPath"),
       light: root.querySelector("#equalizerLightField"),
       dark: root.querySelector("#equalizerDarkField"),
@@ -1180,7 +1178,7 @@ class VoiceAssistApp {
     }
 
     const path = this._smoothClosedPath(points);
-    for (const element of [paths.main, paths.clip, paths.rim, paths.shadow, paths.aura]) {
+    for (const element of [paths.main, paths.clip, paths.aura]) {
       element?.setAttribute("d", path);
     }
     const auraScale = 1.12 + this.equalizerEnergy * 0.08;

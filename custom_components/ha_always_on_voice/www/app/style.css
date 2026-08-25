@@ -427,8 +427,8 @@ button {
 }
 
 .animation-liquid_equalizer .orb {
-  width: 13rem;
-  height: 13rem;
+  width: 14.5rem;
+  height: 14.5rem;
   animation: none;
   filter:
     drop-shadow(0 1.4rem 2.2rem rgba(0, 0, 0, 0.32))

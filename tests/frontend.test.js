@@ -43,7 +43,7 @@ function createVoiceApp() {
     "#diagStt", "#diagTts", "#diagAudio", "#latencyStt",
     "#latencyIntent", "#latencyTts",
     ".voice-core-svg", "#equalizerMainPath", "#equalizerClipPath",
-    "#equalizerRimPath", "#equalizerShadowRim", "#equalizerAuraPath",
+    "#equalizerAuraPath",
     "#equalizerLightField", "#equalizerDarkField", "#equalizerSpecular",
     "#equalizerWaveOne", "#equalizerWaveTwo",
   ];
@@ -76,6 +76,8 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.match(markup, /clipPath id="auroraClip"/);
   assert.match(markup, /clipPath id="equalizerClip"/);
   assert.match(markup, /id="equalizerMainPath"/);
+  assert.doesNotMatch(markup, /equalizerShadowRim/);
+  assert.doesNotMatch(markup, /equalizerRimPath/);
   assert.match(styles, /animation-liquid_equalizer/);
   assert.match(styles, /state-speaking \.equalizer-color-three/);
   assert.match(markup, /animate attributeName="d"/);

@@ -180,10 +180,6 @@ globalThis.HAVoiceMarkup = `
                   fill="none" stroke="url(#equalizerCaustic)" stroke-width="1.5" stroke-linecap="round" opacity="0.58"/>
                 <ellipse id="equalizerSpecular" cx="67" cy="57" rx="27" ry="18" fill="url(#equalizerPearl)" transform="rotate(-28 67 57)"/>
               </g>
-              <path id="equalizerShadowRim" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
-                fill="none" stroke="#020b18" stroke-opacity="0.62" stroke-width="3"/>
-              <path id="equalizerRimPath" d="M100 15 C151 15 185 49 185 100 C185 151 151 185 100 185 C49 185 15 151 15 100 C15 49 49 15 100 15 Z"
-                fill="none" stroke="#d9fff7" stroke-opacity="0.48" stroke-width="1.2"/>
             </g>
 
             <g class="svg-design svg-aurora">
