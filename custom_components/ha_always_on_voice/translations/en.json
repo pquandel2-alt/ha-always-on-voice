@@ -38,6 +38,7 @@
         "name": "Voice output",
         "state": {
           "pipeline": "From Assist pipeline",
+          "browser": "iPhone / browser voice",
           "muted": "Muted"
         }
       }

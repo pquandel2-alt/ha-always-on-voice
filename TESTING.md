@@ -10,7 +10,8 @@ node --test tests/frontend.test.js
 
 The tests cover PCM conversion, Home Assistant binary-handler framing, stream
 termination, VAD-based response persistence, TTS playback completion, and
-device-supplied UI configuration.
+device-supplied UI configuration. It also verifies automatic microphone startup
+and the iPhone-voice fallback for a Home Assistant TTS HTTP 500 response.
 
 Before committing, also validate syntax and whitespace:
 
@@ -33,9 +34,10 @@ Prerequisites:
 ### First launch
 
 1. Open **Voice Assist** from the sidebar.
-2. Confirm that the new interface fills the panel and shows
-   **Mikrofon starten**.
-3. Tap the button and approve the iOS microphone prompt if shown.
+2. Confirm that the new interface fills the panel and immediately attempts to
+   activate the microphone.
+3. Approve the iOS microphone prompt if shown. Only tap **Mikrofon starten** if
+   iOS explicitly blocks activation without a gesture.
 4. Confirm the status changes to **Ich höre zu**.
 
 There must be no `navigator.mediaDevices` error. The UI is rendered directly in
@@ -52,6 +54,8 @@ the panel's top-level document instead of an iframe.
 5. Leave the panel listening. The last response must remain visible until you
    actually begin speaking again.
 6. Repeat with an entity command such as “Schalte das Licht im Wohnzimmer ein”.
+7. Temporarily select **iPhone-/Browser-Stimme** on the device and confirm the
+   response uses the iPhone system voice.
 
 ### Network recovery
 

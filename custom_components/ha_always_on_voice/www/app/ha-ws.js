@@ -223,7 +223,7 @@ class HAVoicePipeline {
         break;
       }
       case "tts-start":
-        this.onTtsStart?.();
+        this.onTtsStart?.({ text: data?.tts_input || "" });
         break;
       case "tts-end":
         this.onTtsEnd?.({ url: data?.tts_output?.url || "" });

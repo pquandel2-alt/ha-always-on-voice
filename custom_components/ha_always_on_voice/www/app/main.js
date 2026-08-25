@@ -22,6 +22,8 @@ class VoiceAssistApp {
     this.animationId = null;
     this.currentTtsSource = null;
     this.currentTtsPlaybackId = null;
+    this.currentTtsObjectUrl = null;
+    this.currentSpeechUtterance = null;
     this.ttsEnded = true;
     this.ttsWasRequested = false;
     this.runEnded = false;
@@ -29,6 +31,7 @@ class VoiceAssistApp {
     this.animationStyle = "orb";
     this.ttsPlayback = "pipeline";
     this.ttsEngine = null;
+    this.ttsText = "";
     this.persistentNotice = null;
     this.smoothedLevels = new Float32Array(72);
 
@@ -100,15 +103,16 @@ class VoiceAssistApp {
         return;
       }
       this._setState("READY");
-      this._updateStateUI("Bereit", "Einmal tippen, um das Mikrofon zu aktivieren");
+      this._updateStateUI("Mikrofon starten", "Automatische Aktivierung wird versucht …");
       this._showStartButton("Mikrofon starten");
+      await this.activate({ automatic: true });
     } catch (error) {
       this.initialized = false;
       this._handleError(error, { recoverable: true });
     }
   }
 
-  async activate() {
+  async activate({ automatic = false } = {}) {
     if (this.starting || this.destroyed) return;
     this.starting = true;
     // Prime one persistent media element synchronously inside the tap event.
@@ -125,8 +129,19 @@ class VoiceAssistApp {
       this.startOverlay.classList.remove("visible");
       await this._startListening();
     } catch (error) {
-      this._handleError(error, { recoverable: false });
-      this._showStartButton("Erneut versuchen");
+      if (automatic && !this.audio.isRecording) {
+        console.info("Automatic microphone activation was blocked", error);
+        this.userActivated = false;
+        this._setState("READY");
+        this._updateStateUI(
+          "Bereit",
+          "Falls iOS den Autostart blockiert: einmal auf Mikrofon starten tippen"
+        );
+        this._showStartButton("Mikrofon starten");
+      } else {
+        this._handleError(error, { recoverable: false });
+        this._showStartButton("Erneut versuchen");
+      }
     } finally {
       this.starting = false;
       this.startBtn.disabled = false;
@@ -142,7 +157,7 @@ class VoiceAssistApp {
     this.pipeline.onSttEnd = (data) => this._onSttEnd(data);
     this.pipeline.onIntentStart = () => this._onIntentStart();
     this.pipeline.onIntentEnd = (data) => this._onIntentEnd(data);
-    this.pipeline.onTtsStart = () => this._onTtsStart();
+    this.pipeline.onTtsStart = (data) => this._onTtsStart(data);
     this.pipeline.onTtsEnd = (data) => this._onTtsEnd(data);
     this.pipeline.onRunEnd = (data) => this._onRunEnd(data);
     this.pipeline.onError = (error) => this._handleError(error, { recoverable: true });
@@ -178,6 +193,7 @@ class VoiceAssistApp {
     this.currentTtsPlaybackId = null;
     this.ttsEnded = true;
     this.ttsWasRequested = false;
+    this.ttsText = "";
     this.runEnded = false;
     this.runFailed = false;
     this._setState("STARTING");
@@ -232,8 +248,9 @@ class VoiceAssistApp {
     this.assistResponse.textContent = data.responseText || "";
   }
 
-  _onTtsStart() {
+  _onTtsStart(data = {}) {
     this.ttsWasRequested = true;
+    this.ttsText = data.text?.trim() || this.assistResponse.textContent;
     this._setState("SPEAKING");
     this._updateStateUI("Antwort", "Home Assistant spricht");
   }
@@ -245,11 +262,14 @@ class VoiceAssistApp {
       this._updateStateUI("Antwort", "Sprachausgabe ist in den Geräte-Einstellungen stummgeschaltet");
       return;
     }
+    if (this.ttsPlayback === "browser") {
+      this._playBrowserTTS(this.ttsText || this.assistResponse.textContent);
+      return;
+    }
     if (data.url) {
       this._playTTS(data.url);
     } else {
-      this.persistentNotice = "TTS-Fehler: Die Pipeline hat keine Audiodatei geliefert";
-      this._updateStateUI("Antwort", this.persistentNotice);
+      this._playBrowserTTS(this.ttsText || this.assistResponse.textContent);
     }
   }
 
@@ -261,7 +281,11 @@ class VoiceAssistApp {
       return;
     }
     if (!this.ttsWasRequested && this.assistResponse.textContent) {
-      this._updateStateUI("Antwort", "Sprachausgabe ist in dieser Pipeline nicht verfügbar");
+      if (this.ttsPlayback !== "muted") {
+        this._playBrowserTTS(this.assistResponse.textContent);
+      } else {
+        this._updateStateUI("Antwort", "Sprachausgabe ist stummgeschaltet");
+      }
     }
     if (this.ttsEnded) this._scheduleNextListening();
   }
@@ -275,7 +299,12 @@ class VoiceAssistApp {
     const finish = () => {
       if (finished || this.currentTtsPlaybackId !== playbackId) return;
       finished = true;
+      if (this.currentTtsObjectUrl) {
+        URL.revokeObjectURL(this.currentTtsObjectUrl);
+        this.currentTtsObjectUrl = null;
+      }
       this.currentTtsSource = null;
+      this.currentSpeechUtterance = null;
       this.currentTtsPlaybackId = null;
       this.ttsEnded = true;
       this.pipeline?.notifyTtsFinished();
@@ -283,9 +312,26 @@ class VoiceAssistApp {
     };
 
     const url = new URL(ttsUrl, this.latestHassUrl || window.location.origin);
+    let audioData;
+    try {
+      audioData = await this._fetchTtsAudio(url);
+    } catch (error) {
+      this._reportTtsFailure(error, finish);
+      return;
+    }
     let fallbackPromise = null;
+    let failureReported = false;
+    const reportFailure = (error) => {
+      if (failureReported) return;
+      failureReported = true;
+      this._reportTtsFailure(error, finish);
+    };
     const playFallback = () => {
-      fallbackPromise ||= this._playTtsWithAudioContext(url, playbackId, finish);
+      fallbackPromise ||= this._playTtsWithAudioContext(
+        audioData.arrayBuffer.slice(0),
+        playbackId,
+        finish
+      );
       return fallbackPromise;
     };
     if (this.ttsPlayer) {
@@ -294,12 +340,16 @@ class VoiceAssistApp {
         this.ttsPlayer.onerror = () => {
           if (this.currentTtsPlaybackId === playbackId) {
             playFallback().catch((error) => {
-              this._reportTtsFailure(error, finish);
+              reportFailure(error);
             });
           }
         };
         this.ttsPlayer.volume = 1;
-        this.ttsPlayer.src = url.toString();
+        this.currentTtsObjectUrl = URL.createObjectURL(new Blob(
+          [audioData.arrayBuffer],
+          { type: audioData.contentType }
+        ));
+        this.ttsPlayer.src = this.currentTtsObjectUrl;
         await this.ttsPlayer.play();
         this.persistentNotice = null;
         this._updateStateUI("Antwort", "Home Assistant spricht");
@@ -314,17 +364,11 @@ class VoiceAssistApp {
       this.persistentNotice = null;
       this._updateStateUI("Antwort", "Home Assistant spricht");
     } catch (error) {
-      this._reportTtsFailure(error, finish);
+      reportFailure(error);
     }
   }
 
-  async _playTtsWithAudioContext(url, playbackId, finish) {
-    const context = this.audio.audioContext;
-    if (!context || context.state === "closed") {
-      throw new Error("AudioContext ist nicht aktiv");
-    }
-    if (context.state === "suspended") await context.resume();
-
+  async _fetchTtsAudio(url) {
     const headers = {};
     if (this.latestToken && url.origin === window.location.origin) {
       headers.Authorization = `Bearer ${this.latestToken}`;
@@ -335,10 +379,26 @@ class VoiceAssistApp {
       headers,
     });
     if (!response.ok) {
-      throw new Error(`TTS-Audio konnte nicht geladen werden (${response.status})`);
+      throw new Error(`Home Assistant konnte TTS nicht erzeugen (${response.status})`);
     }
+    const arrayBuffer = await response.arrayBuffer();
+    if (!arrayBuffer.byteLength) {
+      throw new Error("Home Assistant hat eine leere TTS-Datei geliefert");
+    }
+    return {
+      arrayBuffer,
+      contentType: response.headers?.get?.("content-type") || "audio/mpeg",
+    };
+  }
 
-    const audioBuffer = await this._decodeAudioData(context, await response.arrayBuffer());
+  async _playTtsWithAudioContext(arrayBuffer, playbackId, finish) {
+    const context = this.audio.audioContext;
+    if (!context || context.state === "closed") {
+      throw new Error("AudioContext ist nicht aktiv");
+    }
+    if (context.state === "suspended") await context.resume();
+
+    const audioBuffer = await this._decodeAudioData(context, arrayBuffer);
     if (this.currentTtsPlaybackId !== playbackId) return;
 
     const source = context.createBufferSource();
@@ -352,9 +412,65 @@ class VoiceAssistApp {
 
   _reportTtsFailure(error, finish) {
     console.error("TTS playback failed", error);
+    if (this._speakWithBrowserVoice(
+      this.ttsText || this.assistResponse.textContent,
+      finish
+    )) {
+      this.persistentNotice = "Home-Assistant-TTS nicht verfügbar – iPhone-Stimme wird verwendet";
+      this._updateStateUI("Antwort", this.persistentNotice);
+      return;
+    }
     this.persistentNotice = `TTS-Fehler: ${error.message || "unbekannter Fehler"}`;
     this._updateStateUI("Antwort", this.persistentNotice);
     finish();
+  }
+
+  _playBrowserTTS(text) {
+    this.ttsEnded = false;
+    const playbackId = Symbol("browser-tts-playback");
+    this.currentTtsPlaybackId = playbackId;
+    let finished = false;
+    const finish = () => {
+      if (finished || this.currentTtsPlaybackId !== playbackId) return;
+      finished = true;
+      this.currentSpeechUtterance = null;
+      this.currentTtsPlaybackId = null;
+      this.ttsEnded = true;
+      this.pipeline?.notifyTtsFinished();
+      if (this.runEnded) this._scheduleNextListening();
+    };
+    if (this._speakWithBrowserVoice(text, finish)) {
+      this.persistentNotice = null;
+      this._updateStateUI("Antwort", "Die iPhone-Stimme spricht");
+      return;
+    }
+    this.persistentNotice = "TTS-Fehler: Auf diesem Gerät ist keine Browser-Stimme verfügbar";
+    this._updateStateUI("Antwort", this.persistentNotice);
+    finish();
+  }
+
+  _speakWithBrowserVoice(text, finish) {
+    const synth = globalThis.speechSynthesis || window.speechSynthesis;
+    const Utterance = globalThis.SpeechSynthesisUtterance || window.SpeechSynthesisUtterance;
+    if (!synth || !Utterance || !text?.trim()) return false;
+    try {
+      const utterance = new Utterance(text.trim());
+      utterance.lang = globalThis.navigator?.language || "de-DE";
+      utterance.rate = 1;
+      utterance.onend = finish;
+      utterance.onerror = (event) => {
+        this.persistentNotice = `TTS-Fehler: iPhone-Stimme fehlgeschlagen (${event.error || "unbekannt"})`;
+        this._updateStateUI("Antwort", this.persistentNotice);
+        finish();
+      };
+      this.currentSpeechUtterance = utterance;
+      synth.cancel();
+      synth.speak(utterance);
+      return true;
+    } catch (error) {
+      console.warn("Browser speech synthesis failed", error);
+      return false;
+    }
   }
 
   _decodeAudioData(context, arrayBuffer) {
@@ -403,18 +519,22 @@ class VoiceAssistApp {
     this.animationStyle = allowedStyles.has(config.animation_style)
       ? config.animation_style
       : "orb";
-    this.ttsPlayback = config.tts_playback === "muted" ? "muted" : "pipeline";
+    this.ttsPlayback = ["pipeline", "browser", "muted"].includes(config.tts_playback)
+      ? config.tts_playback
+      : "pipeline";
     this.ttsEngine = config.tts_engine || null;
     if (!this.persistentNotice?.startsWith("TTS-Fehler:")) {
       this.persistentNotice = null;
     }
-    if (!this.ttsEngine && this.ttsPlayback !== "muted") {
+    if (!this.ttsEngine && this.ttsPlayback === "pipeline") {
       this.persistentNotice = "Keine TTS-Quelle in der gewählten Assist-Pipeline";
     }
     if (this.ttsSourceLabel) {
       this.ttsSourceLabel.textContent = this.ttsPlayback === "muted"
         ? "Stummgeschaltet"
-        : (this.ttsEngine || "Nicht konfiguriert");
+        : (this.ttsPlayback === "browser"
+          ? "iPhone-/Browser-Stimme"
+          : (this.ttsEngine || "Nicht konfiguriert"));
     }
     this._setState(this.state);
   }
@@ -445,6 +565,9 @@ class VoiceAssistApp {
       }
     }
     this.ttsPlayer?.pause();
+    globalThis.speechSynthesis?.cancel();
+    if (this.currentTtsObjectUrl) URL.revokeObjectURL(this.currentTtsObjectUrl);
+    this.currentTtsObjectUrl = null;
     this.currentTtsSource = null;
     this.currentTtsPlaybackId = null;
     this.ttsEnded = true;
@@ -620,6 +743,9 @@ class VoiceAssistApp {
       }
     }
     this.ttsPlayer?.pause();
+    globalThis.speechSynthesis?.cancel();
+    if (this.currentTtsObjectUrl) URL.revokeObjectURL(this.currentTtsObjectUrl);
+    this.currentTtsObjectUrl = null;
     this.audio.stop();
     this.pipeline?.disconnect();
   }

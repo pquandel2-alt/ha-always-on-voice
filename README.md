@@ -6,12 +6,14 @@ command or using a wake word.
 
 ## Features
 
-- Continuous listening while the panel stays open and in the foreground
+- Automatic microphone start and continuous listening while the panel stays
+  open and in the foreground
 - Local Home Assistant Assist pipeline, including Whisper, conversation agent,
   and TTS
 - Assist Satellite device with pipeline, VAD, TTS playback, and animation configuration
 - Audio-reactive interface designed for the Home Assistant iOS app
 - Persistent response text that remains visible until the next spoken request
+- Automatic iPhone system-voice fallback if Home Assistant TTS fails
 - iPhone widget/deep-link guidance for one-tap access
 - Bundled Voice Assist integration icon on Home Assistant 2026.3 and newer
 - Automatic recovery after WebSocket interruptions
@@ -62,6 +64,13 @@ The TTS provider itself is part of the selected Assist pipeline. The device
 page shows the currently selected provider as a diagnostic sensor. Change the
 provider under **Settings → Voice assistants → Assistants**, or mute/unmute its
 playback with the device's **TTS playback** selector.
+
+The **Voice output** selector offers three modes:
+
+- **From Assist pipeline** uses the configured Home Assistant TTS provider and
+  automatically falls back to the iPhone voice if the server returns no audio.
+- **iPhone / browser voice** always uses the device's system speech synthesis.
+- **Muted** disables spoken responses.
 
 Three animation styles are available: **Orb**, **Spectrum**, and **Minimal**.
 
@@ -123,8 +132,10 @@ it again, and tap **Mikrofon starten**.
 - Check the device's **TTS playback** selector is set to **Use pipeline**.
 - Open the panel settings: it displays the resolved TTS provider or an exact
   playback error.
-- Tap **Microphone starten** once after reopening the app; iOS requires this
-  gesture to unlock both recording and delayed audio playback.
+- The panel attempts to start the microphone immediately. If iOS blocks this
+  until a user gesture, tap **Microphone starten** once.
+- A server response such as `TTS 500` now falls back to the iPhone system voice.
+  Home Assistant's log should still be checked to repair the selected provider.
 
 ### Old frontend remains visible
 

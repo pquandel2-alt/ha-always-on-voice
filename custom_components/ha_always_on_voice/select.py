@@ -116,7 +116,7 @@ class AlwaysOnVoiceTtsPlaybackSelect(_RestoredConfigSelect):
         translation_key="tts_playback",
         entity_category=EntityCategory.CONFIG,
     )
-    _attr_options = ["pipeline", "muted"]
+    _attr_options = ["pipeline", "browser", "muted"]
     _attr_current_option = "pipeline"
 
     def __init__(self, entry: ConfigEntry) -> None:

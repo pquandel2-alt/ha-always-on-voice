@@ -98,8 +98,12 @@ test("forwards the real VAD start event separately from STT startup", () => {
   const pipeline = new HAVoicePipeline("https://ha.example", "token");
   let sttStarts = 0;
   let vadStarts = 0;
+  let ttsText = null;
   pipeline.onSttStart = () => sttStarts++;
   pipeline.onVadStart = () => vadStarts++;
+  pipeline.onTtsStart = (data) => {
+    ttsText = data.text;
+  };
 
   pipeline._handleMessage({ type: "event", event: { type: "stt-start" } });
   assert.equal(sttStarts, 1);
@@ -107,6 +111,12 @@ test("forwards the real VAD start event separately from STT startup", () => {
 
   pipeline._handleMessage({ type: "event", event: { type: "stt-vad-start" } });
   assert.equal(vadStarts, 1);
+
+  pipeline._handleMessage({
+    type: "event",
+    event: { type: "tts-start", data: { tts_input: "Hallo vom Assistenten" } },
+  });
+  assert.equal(ttsText, "Hallo vom Assistenten");
 });
 
 test("keeps an answer visible until the next request starts", async () => {
@@ -124,6 +134,30 @@ test("keeps an answer visible until the next request starts", async () => {
   app._onVadStart();
   assert.equal(nodes["#assistResponse"].textContent, "");
   clearTimeout(app.pipelineRefreshTimer);
+});
+
+test("tries to start the microphone automatically when the panel opens", async () => {
+  const { app } = createVoiceApp();
+  const originalSupportCheck = AudioCapture.getSupportError;
+  AudioCapture.getSupportError = () => null;
+  app._connectPipeline = async () => {
+    app.pipeline = {
+      connected: true,
+      startPipeline: async () => ({}),
+    };
+  };
+  app.audio.start = async () => {
+    app.audio.isRecording = true;
+  };
+
+  try {
+    await app.init();
+    assert.equal(app.audio.isRecording, true);
+    assert.equal(app.state, "LISTENING");
+  } finally {
+    AudioCapture.getSupportError = originalSupportCheck;
+    clearTimeout(app.pipelineRefreshTimer);
+  }
 });
 
 test("plays delayed TTS through the already active AudioContext", async () => {
@@ -166,6 +200,9 @@ test("reuses a user-activated media element for delayed iOS TTS", async () => {
   const { app } = createVoiceApp();
   let playedUrl = null;
   let notified = 0;
+  let fetchCount = 0;
+  const originalCreateObjectUrl = URL.createObjectURL;
+  const originalRevokeObjectUrl = URL.revokeObjectURL;
   app.latestHassUrl = "https://ha.example";
   app.pipeline = { notifyTtsFinished: () => notified++ };
   app.ttsPlayer = {
@@ -175,14 +212,66 @@ test("reuses a user-activated media element for delayed iOS TTS", async () => {
     },
     async play() {},
   };
+  global.fetch = async () => {
+    fetchCount++;
+    return {
+      ok: true,
+      headers: { get: () => "audio/mpeg" },
+      arrayBuffer: async () => new ArrayBuffer(8),
+    };
+  };
+  URL.createObjectURL = () => "blob:tts-audio";
+  URL.revokeObjectURL = () => {};
 
-  await app._playTTS("/api/tts_proxy/test.mp3");
-  assert.equal(playedUrl, "https://ha.example/api/tts_proxy/test.mp3");
-  assert.equal(app.ttsEnded, false);
+  try {
+    await app._playTTS("/api/tts_proxy/test.mp3");
+    assert.equal(playedUrl, "blob:tts-audio");
+    assert.equal(fetchCount, 1);
+    assert.equal(app.ttsEnded, false);
 
-  app.ttsPlayer.onended();
-  assert.equal(notified, 1);
-  assert.equal(app.ttsEnded, true);
+    app.ttsPlayer.onended();
+    assert.equal(notified, 1);
+    assert.equal(app.ttsEnded, true);
+  } finally {
+    URL.createObjectURL = originalCreateObjectUrl;
+    URL.revokeObjectURL = originalRevokeObjectUrl;
+  }
+});
+
+test("falls back to the iPhone voice when Home Assistant TTS returns 500", async () => {
+  const { app, nodes } = createVoiceApp();
+  let spokenText = null;
+  let notified = 0;
+  const originalConsoleError = console.error;
+  class TestUtterance {
+    constructor(text) {
+      this.text = text;
+    }
+  }
+  global.SpeechSynthesisUtterance = TestUtterance;
+  global.speechSynthesis = {
+    cancel() {},
+    speak(utterance) {
+      spokenText = utterance.text;
+      queueMicrotask(() => utterance.onend());
+    },
+  };
+  nodes["#assistResponse"].textContent = "Das Licht ist eingeschaltet.";
+  app.pipeline = { notifyTtsFinished: () => notified++ };
+  global.fetch = async () => ({ ok: false, status: 500 });
+  console.error = () => {};
+
+  try {
+    await app._playTTS("/api/tts_proxy/broken.mp3");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(spokenText, "Das Licht ist eingeschaltet.");
+    assert.equal(notified, 1);
+    assert.equal(app.ttsEnded, true);
+  } finally {
+    delete global.SpeechSynthesisUtterance;
+    delete global.speechSynthesis;
+    console.error = originalConsoleError;
+  }
 });
 
 test("applies animation and TTS settings supplied by the device", () => {
@@ -196,4 +285,8 @@ test("applies animation and TTS settings supplied by the device", () => {
   assert.equal(app.animationStyle, "minimal");
   assert.match(nodes["#app"].className, /animation-minimal/);
   assert.equal(nodes["#ttsSourceLabel"].textContent, "tts.piper");
+
+  app._applyRunConfiguration({ tts_playback: "browser" });
+  assert.equal(app.ttsPlayback, "browser");
+  assert.equal(nodes["#ttsSourceLabel"].textContent, "iPhone-/Browser-Stimme");
 });

@@ -38,6 +38,7 @@
         "name": "Sprachausgabe",
         "state": {
           "pipeline": "Aus Assist-Pipeline",
+          "browser": "iPhone-/Browser-Stimme",
           "muted": "Stumm"
         }
       }

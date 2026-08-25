@@ -59,6 +59,9 @@ class AudioCapture {
       if (this.audioContext.state === "suspended") {
         await this.audioContext.resume();
       }
+      if (this.audioContext.state !== "running") {
+        throw new Error("iOS verlangt einmaliges Tippen zum Aktivieren des Audiosystems.");
+      }
 
       this.sampleRate = this.audioContext.sampleRate;
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
