@@ -79,19 +79,28 @@ globalThis.HAVoiceMarkup = `
                 <stop offset="0" stop-color="#5543e0" stop-opacity="0.46"/>
                 <stop offset="1" stop-color="#6555e8" stop-opacity="0"/>
               </radialGradient>
-              <clipPath id="sphereClip"><circle cx="100" cy="100" r="87"/></clipPath>
+              <path id="fluidShape" d="M100 12 C151 8 188 45 187 98 C186 149 151 187 100 188 C49 189 13 152 13 101 C13 50 49 16 100 12 Z">
+                <animate attributeName="d" dur="7s" repeatCount="indefinite"
+                  calcMode="spline" keyTimes="0;0.33;0.66;1"
+                  keySplines="0.42 0 0.58 1;0.42 0 0.58 1;0.42 0 0.58 1"
+                  values="M100 12 C151 8 188 45 187 98 C186 149 151 187 100 188 C49 189 13 152 13 101 C13 50 49 16 100 12 Z;
+                          M93 19 C144 1 192 30 187 86 C183 142 167 184 112 190 C55 196 15 169 14 116 C13 66 42 34 93 19 Z;
+                          M108 11 C164 18 181 57 189 110 C197 162 141 192 87 185 C34 178 15 139 15 87 C15 37 55 4 108 11 Z;
+                          M100 12 C151 8 188 45 187 98 C186 149 151 187 100 188 C49 189 13 152 13 101 C13 50 49 16 100 12 Z"/>
+              </path>
+              <clipPath id="sphereClip"><use href="#fluidShape"/></clipPath>
               <clipPath id="auroraClip"><rect x="9" y="38" width="182" height="124" rx="62"/></clipPath>
             </defs>
 
             <g class="svg-design svg-sphere">
-              <circle cx="100" cy="100" r="88" fill="url(#fluidBase)"/>
+              <use href="#fluidShape" fill="url(#fluidBase)"/>
               <g clip-path="url(#sphereClip)">
                 <ellipse class="svg-flow svg-flow-light" cx="57" cy="45" rx="105" ry="67" fill="url(#flowLight)"/>
                 <ellipse class="svg-flow svg-flow-dark" cx="142" cy="151" rx="101" ry="73" fill="url(#flowDark)"/>
                 <circle cx="100" cy="100" r="88" fill="url(#fluidShade)"/>
+                <ellipse cx="69" cy="53" rx="26" ry="13" fill="#fff" opacity="0.16" transform="rotate(-24 69 53)"/>
               </g>
-              <ellipse cx="69" cy="53" rx="26" ry="13" fill="#fff" opacity="0.16" transform="rotate(-24 69 53)"/>
-              <circle cx="100" cy="100" r="88" fill="none" stroke="#dffff7" stroke-opacity="0.28" stroke-width="1.4"/>
+              <use href="#fluidShape" fill="none" stroke="#dffff7" stroke-opacity="0.28" stroke-width="1.4"/>
             </g>
 
             <g class="svg-design svg-aurora">

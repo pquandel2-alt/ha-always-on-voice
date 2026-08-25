@@ -59,6 +59,8 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.match(markup, /class="voice-core-svg"/);
   assert.match(markup, /clipPath id="sphereClip"/);
   assert.match(markup, /clipPath id="auroraClip"/);
+  assert.match(markup, /animate attributeName="d"/);
+  assert.match(markup, /repeatCount="indefinite"/);
   assert.doesNotMatch(orbRule, /overflow:\s*hidden/);
   assert.doesNotMatch(orbRule, /border-radius/);
 });
