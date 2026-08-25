@@ -27,6 +27,24 @@ class HAVoicePipeline {
 
   async connect() {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const settleReject = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      };
+      const settleResolve = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve();
+      };
+
+      const timeoutId = setTimeout(() => {
+        settleReject(new Error("WebSocket connection timed out"));
+      }, 10000);
+
       const protocol = this.hassUrl.startsWith("https") ? "wss" : "ws";
       const url = new URL("/api/websocket", this.hassUrl);
       url.protocol = protocol;
@@ -35,11 +53,15 @@ class HAVoicePipeline {
       this.ws.binaryType = "arraybuffer";
 
       this.ws.onopen = async () => {
-        await this._authenticate();
-        if (this.onConnected) {
-          this.onConnected();
+        try {
+          await this._authenticate();
+          if (this.onConnected) {
+            this.onConnected();
+          }
+          settleResolve();
+        } catch (error) {
+          settleReject(error);
         }
-        resolve();
       };
 
       this.ws.onmessage = (event) => {
@@ -58,11 +80,14 @@ class HAVoicePipeline {
         if (this.onError) {
           this.onError(error);
         }
-        reject(error);
+        settleReject(error instanceof Error ? error : new Error("WebSocket error"));
       };
 
-      this.ws.onclose = () => {
-        console.log("WebSocket closed");
+      this.ws.onclose = (event) => {
+        console.log("WebSocket closed", event.code, event.reason);
+        settleReject(
+          new Error(`WebSocket closed before auth completed (code ${event.code})`)
+        );
       };
     });
   }
@@ -75,7 +100,7 @@ class HAVoicePipeline {
   }
 
   async _authenticate() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const msg = {
         type: "auth",
         access_token: this.accessToken,
@@ -90,7 +115,7 @@ class HAVoicePipeline {
             resolve();
           } else if (message.type === "auth_invalid") {
             this.ws.removeEventListener("message", onMessage);
-            throw new Error("Authentication failed");
+            reject(new Error(message.message || "Authentication failed"));
           }
         }
       };

@@ -3,7 +3,7 @@
  * Cache-first strategy for shell files, network-first for API calls
  */
 
-const CACHE_NAME = "ha-voice-v1";
+const CACHE_NAME = "ha-voice-v2";
 const SHELL_URLS = [
   "/ha_voice_app/index.html",
   "/ha_voice_app/main.js",
