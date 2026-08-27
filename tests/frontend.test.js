@@ -808,3 +808,29 @@ test("lets the panel start again after Home Assistant re-attaches it", () => {
     global.HTMLElement = originalHTMLElement;
   }
 });
+
+test("keeps all four version strings in lockstep", () => {
+  // The version is cache-busting metadata in four hand-maintained places, and
+  // two of them bust different asset sets: __init__.py appends ?v= to the panel
+  // module, ha-voice-panel.js appends its own APP_VERSION to ui/audio/ha-ws/main.
+  // Bump the manifest but forget APP_VERSION and every user downloads a new
+  // loader that then re-requests the *old cached* main.js — they receive the
+  // update and the bug at once, and nobody can reproduce it.
+  const integration = path.join(__dirname, "../custom_components/ha_always_on_voice");
+  const read = (relative) => fs.readFileSync(path.join(integration, relative), "utf8");
+  const capture = (relative, pattern) => {
+    const match = read(relative).match(pattern);
+    assert.ok(match, `version not found in ${relative}`);
+    return match[1];
+  };
+
+  const version = JSON.parse(read("manifest.json")).version;
+  assert.match(version, /^\d+\.\d+\.\d+$/);
+
+  assert.equal(capture("__init__.py", /_FRONTEND_VERSION = "([^"]+)"/), version);
+  assert.equal(capture("www/ha-voice-panel.js", /APP_VERSION = "([^"]+)"/), version);
+  assert.equal(
+    capture("www/app/sw.js", /CACHE_NAME = "([^"]+)"/),
+    `ha-voice-v${version.replace(/\./g, "")}`
+  );
+});

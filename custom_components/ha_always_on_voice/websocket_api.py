@@ -136,7 +136,11 @@ async def websocket_tts_finished(
 @websocket_api.websocket_command(
     {
         vol.Required("type"): WS_TYPE_RUN,
-        vol.Required("sample_rate"): int,
+        # Bound the rate before it reaches audioop.ratecv below. Upsampling is
+        # unbounded work: a chunk sent as 1 Hz expands 16000-fold, so 4 KB of
+        # audio becomes 65 MB in an unbounded queue. 8 kHz is the Web Audio
+        # floor, 192 kHz covers the highest rate any browser reports.
+        vol.Required("sample_rate"): vol.All(int, vol.Range(min=8000, max=192000)),
     }
 )
 @websocket_api.async_response

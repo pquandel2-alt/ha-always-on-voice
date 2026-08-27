@@ -18,7 +18,7 @@ _SCHEMA = vol.Schema(
 )
 
 
-class HA_ALWAYS_ON_VOICE_ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class AlwaysOnVoiceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for HA Voice Control."""
 
     VERSION = 1
