@@ -4,9 +4,13 @@
 
 const RECONNECT_BASE_DELAY_MS = 2000;
 const RECONNECT_MAX_DELAY_MS = 30000;
-// Guards the one-time hop to an HTTPS origin so a misconfigured secure URL
-// cannot bounce the user between two origins forever.
+// Guards the hop to an HTTPS origin so a misconfigured secure URL cannot bounce
+// the user between two origins forever. Stores the timestamp of the last hop.
 const SECURE_REDIRECT_FLAG = "haVoiceSecureRedirect";
+// A genuine origin bounce re-enters within a page load or two. Anything slower
+// is a user reopening the panel, who must be allowed to hop again — a permanent
+// flag would strand them on the insecure origin for the rest of the session.
+const SECURE_REDIRECT_COOLDOWN_MS = 15000;
 // Remembering the HTTPS origin lets the next start redirect immediately
 // instead of booting the whole app first.
 const SECURE_URL_CACHE_KEY = "haVoiceSecureUrl";
@@ -549,9 +553,9 @@ class VoiceAssistApp {
   _redirectToSecureUrl() {
     const target = this._securePanelUrl();
     if (!target) return false;
-    // Only ever hop once per browsing session. If the HTTPS origin is
-    // unreachable the user lands back here, and a second automatic hop would
-    // just bounce them between origins.
+    // Suppress only an immediate second hop. If the HTTPS origin bounces us
+    // straight back, one retry is enough to prove it is broken; a user who
+    // reopens the panel later still gets carried across.
     if (this._secureRedirectAttempted()) return false;
     this._markSecureRedirectAttempted();
     this._setState("CONNECTING");
@@ -575,7 +579,13 @@ class VoiceAssistApp {
 
   _secureRedirectAttempted() {
     try {
-      return globalThis.sessionStorage?.getItem(SECURE_REDIRECT_FLAG) === "1";
+      const raw = globalThis.sessionStorage?.getItem(SECURE_REDIRECT_FLAG);
+      if (!raw) return false;
+      const last = Number(raw);
+      // A pre-1.2.2 flag stored the string "1"; treat anything unparsable as
+      // stale rather than as a permanent block.
+      if (!Number.isFinite(last)) return false;
+      return Date.now() - last < SECURE_REDIRECT_COOLDOWN_MS;
     } catch (_error) {
       return false;
     }
@@ -583,7 +593,7 @@ class VoiceAssistApp {
 
   _markSecureRedirectAttempted() {
     try {
-      globalThis.sessionStorage?.setItem(SECURE_REDIRECT_FLAG, "1");
+      globalThis.sessionStorage?.setItem(SECURE_REDIRECT_FLAG, String(Date.now()));
     } catch (_error) {
       // Private mode without storage — the protocol check still prevents loops.
     }

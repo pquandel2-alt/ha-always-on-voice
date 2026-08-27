@@ -605,9 +605,10 @@ function withSessionStorage(run) {
   }
 }
 
-test("redirects to HTTPS only once per session", () => {
+test("suppresses an immediate second HTTPS hop but not a later one", () => {
   const { app } = createVoiceApp();
   const originalLocation = window.location;
+  const originalNow = Date.now;
   window.location = {
     origin: "http://192.168.1.10:8123",
     pathname: "/ha_always_on_voice",
@@ -621,9 +622,47 @@ test("redirects to HTTPS only once per session", () => {
       const targets = [];
       app.navigate = (url) => targets.push(url);
 
+      let now = 1_000_000;
+      Date.now = () => now;
+
       assert.equal(app._redirectToSecureUrl(), true);
-      // A second attempt must not bounce the user between the two origins.
+      // An origin bounce re-enters immediately and must be stopped.
       assert.equal(app._redirectToSecureUrl(), false);
+      assert.equal(targets.length, 1);
+
+      // Reopening the panel later must hop again. The permanent flag shipped
+      // in 1.2.1 stranded the user on the insecure origin for the whole
+      // session, showing "Mikrofonzugriff benötigt HTTPS" instead.
+      now += 60_000;
+      assert.equal(app._redirectToSecureUrl(), true);
+      assert.equal(targets.length, 2);
+    });
+  } finally {
+    Date.now = originalNow;
+    window.location = originalLocation;
+  }
+});
+
+test("treats a pre-1.2.2 redirect flag as stale instead of a permanent block", () => {
+  const { app } = createVoiceApp();
+  const originalLocation = window.location;
+  window.location = {
+    origin: "http://192.168.1.10:8123",
+    pathname: "/ha_always_on_voice",
+    search: "",
+    hash: "",
+  };
+  app.secureUrl = "https://home.example/";
+
+  try {
+    withSessionStorage(() => {
+      // 1.2.1 wrote the literal string "1", which is not a usable timestamp.
+      // Upgrading users must not stay locked out by their own stale flag.
+      global.sessionStorage.setItem("haVoiceSecureRedirect", "1");
+      const targets = [];
+      app.navigate = (url) => targets.push(url);
+
+      assert.equal(app._redirectToSecureUrl(), true);
       assert.equal(targets.length, 1);
     });
   } finally {

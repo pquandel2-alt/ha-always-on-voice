@@ -14,10 +14,16 @@ device-supplied UI configuration. It also verifies automatic microphone startup
 and the iPhone-voice fallback for a Home Assistant TTS HTTP 500 response, plus
 panel back navigation.
 
-Regression coverage for the 1.2.1 connection fixes: the HTTPS switch happens at
-most once per session, reconnects back off exponentially and reset after a
-success, the WebSocket keepalive closes a socket that stops answering pings, and
-the panel can start again after Home Assistant re-attaches it.
+Regression coverage for the 1.2.1 connection fixes: reconnects back off
+exponentially and reset after a success, the WebSocket keepalive closes a socket
+that stops answering pings, and the panel can start again after Home Assistant
+re-attaches it.
+
+Regression coverage for the 1.2.2 redirect fix: an immediate second HTTPS switch
+is suppressed, a later one is not, and a stale 1.2.1 flag does not block the
+switch after upgrading. The 1.2.1 guard was permanent for the whole browsing
+session, which left the panel stuck on the insecure origin showing
+"Mikrofonzugriff benötigt HTTPS" every time it was reopened.
 
 Before committing, also validate syntax and whitespace:
 
