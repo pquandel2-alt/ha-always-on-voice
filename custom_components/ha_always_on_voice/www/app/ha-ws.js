@@ -2,6 +2,9 @@
  * Home Assistant WebSocket client for the custom browser satellite bridge.
  */
 
+const HEARTBEAT_INTERVAL_MS = 25000;
+const PONG_TIMEOUT_MS = 10000;
+
 class HAVoicePipeline {
   constructor(hassUrl, accessToken) {
     this.hassUrl = hassUrl;
@@ -14,6 +17,12 @@ class HAVoicePipeline {
     this.binaryHandlerId = null;
     this.pendingCommands = new Map();
     this.configurationSubscriptionId = null;
+    // Idle WebSockets are dropped silently by router NAT tables and by iOS when
+    // the radio switches networks. A ping/pong keepalive both keeps the path
+    // open and surfaces a dead socket within seconds instead of on next use.
+    this.heartbeatTimer = null;
+    this.pongTimer = null;
+    this.pendingPingId = null;
 
     this.onSttStart = null;
     this.onVadStart = null;
@@ -71,6 +80,7 @@ class HAVoicePipeline {
         }
         if (message.type === "auth_ok") {
           this.connected = true;
+          this._startHeartbeat();
           this.onConnected?.();
           finish();
           return;
@@ -92,6 +102,7 @@ class HAVoicePipeline {
       this.ws.onclose = (event) => {
         const wasConnected = this.connected;
         this.connected = false;
+        this._stopHeartbeat();
         this.binaryHandlerId = null;
         this.activeRunId = null;
         const error = new Error(`Verbindung zu Home Assistant getrennt (${event.code}).`);
@@ -105,6 +116,7 @@ class HAVoicePipeline {
   disconnect() {
     this.intentionalClose = true;
     this.connected = false;
+    this._stopHeartbeat();
     this.binaryHandlerId = null;
     this.activeRunId = null;
     this.configurationSubscriptionId = null;
@@ -115,6 +127,36 @@ class HAVoicePipeline {
       this.ws.close();
       this.ws = null;
     }
+  }
+
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => this._sendPing(), HEARTBEAT_INTERVAL_MS);
+  }
+
+  _stopHeartbeat() {
+    clearInterval(this.heartbeatTimer);
+    clearTimeout(this.pongTimer);
+    this.heartbeatTimer = null;
+    this.pongTimer = null;
+    this.pendingPingId = null;
+  }
+
+  _sendPing() {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.connected) return;
+    // A ping is still outstanding — the socket is already unresponsive.
+    if (this.pendingPingId !== null) return;
+
+    const id = this.msgId++;
+    this.pendingPingId = id;
+    this.ws.send(JSON.stringify({ id, type: "ping" }));
+
+    this.pongTimer = setTimeout(() => {
+      this.pendingPingId = null;
+      // Closing here makes onclose run the normal recovery path rather than
+      // leaving a half-open socket that silently swallows audio.
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.close();
+    }, PONG_TIMEOUT_MS);
   }
 
   startPipeline(sampleRate = 16000) {
@@ -220,6 +262,15 @@ class HAVoicePipeline {
   }
 
   _handleMessage(message) {
+    if (message.type === "pong") {
+      if (message.id === this.pendingPingId) {
+        clearTimeout(this.pongTimer);
+        this.pongTimer = null;
+        this.pendingPingId = null;
+      }
+      return;
+    }
+
     if (message.type === "result") {
       const pending = this.pendingCommands.get(message.id);
       if (pending) {

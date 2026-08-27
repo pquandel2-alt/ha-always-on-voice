@@ -589,3 +589,183 @@ test("renders live Home Assistant configuration as direct settings", () => {
   assert.equal(nodes["#animationSetting"].value, "aurora");
   assert.equal(nodes["#diagPipeline"].dataset.status, "ok");
 });
+
+function withSessionStorage(run) {
+  const original = global.sessionStorage;
+  const store = new Map();
+  global.sessionStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+  };
+  try {
+    return run();
+  } finally {
+    if (original === undefined) delete global.sessionStorage;
+    else global.sessionStorage = original;
+  }
+}
+
+test("redirects to HTTPS only once per session", () => {
+  const { app } = createVoiceApp();
+  const originalLocation = window.location;
+  window.location = {
+    origin: "http://192.168.1.10:8123",
+    pathname: "/ha_always_on_voice",
+    search: "",
+    hash: "",
+  };
+  app.secureUrl = "https://home.example/";
+
+  try {
+    withSessionStorage(() => {
+      const targets = [];
+      app.navigate = (url) => targets.push(url);
+
+      assert.equal(app._redirectToSecureUrl(), true);
+      // A second attempt must not bounce the user between the two origins.
+      assert.equal(app._redirectToSecureUrl(), false);
+      assert.equal(targets.length, 1);
+    });
+  } finally {
+    window.location = originalLocation;
+  }
+});
+
+test("names the HTTPS address instead of failing vaguely on an insecure origin", () => {
+  const { app } = createVoiceApp();
+  const originalSecure = window.isSecureContext;
+  window.isSecureContext = false;
+  app.secureUrl = "https://home.example/";
+
+  try {
+    const described = app._describeInsecureContext(new Error("original"));
+    assert.match(described.message, /https:\/\/home\.example/);
+  } finally {
+    window.isSecureContext = originalSecure;
+  }
+});
+
+test("backs off exponentially instead of retrying every three seconds", () => {
+  const { app } = createVoiceApp();
+  const delays = [];
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = (_fn, ms) => {
+    delays.push(ms);
+    return 1;
+  };
+
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      app.reconnectTimer = null;
+      app._scheduleReconnect();
+    }
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+
+  assert.equal(delays.length, 5);
+  // Jitter is +/-25%, so compare against the guaranteed bounds rather than
+  // exact values.
+  assert.ok(delays[0] <= 2000 * 1.25, `first delay too long: ${delays[0]}`);
+  assert.ok(delays[4] > delays[0], "delay did not grow across attempts");
+  assert.ok(delays[4] <= 30000 * 1.25, `delay exceeded the cap: ${delays[4]}`);
+});
+
+test("resets the backoff once a reconnect succeeds", async () => {
+  const { app } = createVoiceApp();
+  app.reconnectAttempts = 4;
+  app._connectPipeline = async () => {};
+
+  await app._reconnect();
+
+  // Otherwise a later, unrelated dropout would start at the 30s cap.
+  assert.equal(app.reconnectAttempts, 0);
+});
+
+test("keeps the socket alive with ping and clears the timeout on pong", () => {
+  const sent = [];
+  let closed = false;
+  const pipeline = new HAVoicePipeline("https://ha.example", "token");
+  pipeline.connected = true;
+  pipeline.ws = {
+    readyState: WebSocket.OPEN,
+    send: (value) => sent.push(value),
+    close: () => { closed = true; },
+  };
+
+  pipeline._sendPing();
+  const ping = JSON.parse(sent.shift());
+  assert.equal(ping.type, "ping");
+  assert.equal(pipeline.pendingPingId, ping.id);
+
+  pipeline._handleMessage({ id: ping.id, type: "pong" });
+  assert.equal(pipeline.pendingPingId, null);
+  assert.equal(closed, false);
+  pipeline._stopHeartbeat();
+});
+
+test("closes a socket that never answers the ping", () => {
+  const sent = [];
+  let closed = false;
+  let pongTimeoutFn = null;
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = (fn) => {
+    pongTimeoutFn = fn;
+    return 1;
+  };
+
+  const pipeline = new HAVoicePipeline("https://ha.example", "token");
+  pipeline.connected = true;
+  pipeline.ws = {
+    readyState: WebSocket.OPEN,
+    send: (value) => sent.push(value),
+    close: () => { closed = true; },
+  };
+
+  try {
+    pipeline._sendPing();
+    assert.ok(pongTimeoutFn, "no pong timeout was armed");
+    pongTimeoutFn();
+  } finally {
+    global.setTimeout = originalSetTimeout;
+  }
+
+  // A half-open socket must be torn down so the normal reconnect path runs.
+  assert.equal(closed, true);
+  assert.equal(pipeline.pendingPingId, null);
+});
+
+test("lets the panel start again after Home Assistant re-attaches it", () => {
+  const originalCustomElements = global.customElements;
+  const originalHTMLElement = global.HTMLElement;
+  let PanelClass = null;
+  global.HTMLElement = class {};
+  global.customElements = {
+    get: () => undefined,
+    define: (_name, cls) => { PanelClass = cls; },
+  };
+
+  try {
+    delete require.cache[
+      require.resolve("../custom_components/ha_always_on_voice/www/ha-voice-panel.js")
+    ];
+    require("../custom_components/ha_always_on_voice/www/ha-voice-panel.js");
+    assert.ok(PanelClass, "panel element was never defined");
+
+    let destroyed = false;
+    const panel = Object.create(PanelClass.prototype);
+    panel._app = { destroy: () => { destroyed = true; } };
+    panel._started = true;
+
+    panel.disconnectedCallback();
+
+    assert.equal(destroyed, true);
+    // Without this reset _maybeStart() returns early forever and the panel
+    // comes back showing "Verbindung unterbrochen".
+    assert.equal(panel._started, false);
+    assert.equal(panel._app, null);
+  } finally {
+    global.customElements = originalCustomElements;
+    global.HTMLElement = originalHTMLElement;
+  }
+});

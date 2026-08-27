@@ -1,5 +1,5 @@
 const APP_BASE = "/ha_voice_app";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.2.1";
 
 function loadVoiceScript(name, readyCheck) {
   if (readyCheck()) return Promise.resolve();
@@ -54,7 +54,10 @@ class HaVoicePanel extends HTMLElement {
     this._assetsReady = loadVoiceAssets()
       .then(() => {
         const mount = this.shadowRoot.querySelector("#voiceMount");
-        if (!mount.querySelector("#app")) mount.innerHTML = globalThis.HAVoiceMarkup;
+        // Always re-render: VoiceAssistApp.destroy() cannot detach the click
+        // handlers it bound, so reusing the old markup would stack a second set
+        // of listeners on every re-attach.
+        mount.innerHTML = globalThis.HAVoiceMarkup;
         return true;
       })
       .catch((error) => {
@@ -84,6 +87,10 @@ class HaVoicePanel extends HTMLElement {
 
   disconnectedCallback() {
     this._app?.destroy();
+    // The shadow root survives re-attachment, so without clearing these the
+    // panel would come back with a destroyed app and never reconnect.
+    this._app = null;
+    this._started = false;
   }
 }
 

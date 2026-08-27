@@ -4,7 +4,7 @@
  * last successful shell remains available as an offline fallback.
  */
 
-const CACHE_NAME = "ha-voice-v120";
+const CACHE_NAME = "ha-voice-v121";
 const SHELL_URLS = [
   "/ha_voice_app/index.html",
   "/ha_voice_app/ui.js",
@@ -38,11 +38,23 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Skip API/WebSocket requests — let them go to network
+  // Only ever touch same-origin GETs for the app shell. The previous
+  // `includes("ws")` test matched any URL containing those two letters, which
+  // pulled unrelated requests out of the cache path.
+  if (event.request.method !== "GET") return;
+
+  let url;
+  try {
+    url = new URL(event.request.url);
+  } catch (_error) {
+    return;
+  }
+
+  if (url.origin !== self.location.origin) return;
   if (
-    event.request.url.includes("/api/") ||
-    event.request.url.includes("/auth/") ||
-    event.request.url.includes("ws")
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/auth/") ||
+    !url.pathname.startsWith("/ha_voice_app/")
   ) {
     return;
   }

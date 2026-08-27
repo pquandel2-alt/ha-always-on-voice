@@ -2,6 +2,15 @@
  * Voice UI state machine and lifecycle management.
  */
 
+const RECONNECT_BASE_DELAY_MS = 2000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+// Guards the one-time hop to an HTTPS origin so a misconfigured secure URL
+// cannot bounce the user between two origins forever.
+const SECURE_REDIRECT_FLAG = "haVoiceSecureRedirect";
+// Remembering the HTTPS origin lets the next start redirect immediately
+// instead of booting the whole app first.
+const SECURE_URL_CACHE_KEY = "haVoiceSecureUrl";
+
 class VoiceAssistApp {
   constructor({ root = document, authProvider = null } = {}) {
     this.root = root;
@@ -17,6 +26,7 @@ class VoiceAssistApp {
     this.starting = false;
     this.reconnecting = false;
     this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
     this.restartTimer = null;
     this.pipelineRefreshTimer = null;
     this.animationId = null;
@@ -431,12 +441,24 @@ class VoiceAssistApp {
     this._setState("CONNECTING");
     this._updateStateUI("Verbinden", "Home Assistant wird vorbereitet …");
 
+    // Hop to HTTPS before building the UI or opening a socket. Doing it after
+    // the pipeline connected made the user watch the app boot once and then
+    // reload — the "loads twice" symptom on the local network.
+    if (!window.isSecureContext) {
+      this.secureUrl = this.secureUrl || this._cachedSecureUrl();
+      if (this._redirectToSecureUrl()) return;
+    }
+
     try {
       await this._connectPipeline();
       const supportError = globalThis.AudioCapture.getSupportError();
       if (supportError) {
+        // The config we just received may reveal a secure URL we did not know
+        // about on the very first run.
         if (!window.isSecureContext && this._redirectToSecureUrl()) return;
-        this._handleError(supportError, { recoverable: false });
+        this._handleError(this._describeInsecureContext(supportError), {
+          recoverable: false,
+        });
         return;
       }
       this._setState("READY");
@@ -527,10 +549,61 @@ class VoiceAssistApp {
   _redirectToSecureUrl() {
     const target = this._securePanelUrl();
     if (!target) return false;
+    // Only ever hop once per browsing session. If the HTTPS origin is
+    // unreachable the user lands back here, and a second automatic hop would
+    // just bounce them between origins.
+    if (this._secureRedirectAttempted()) return false;
+    this._markSecureRedirectAttempted();
     this._setState("CONNECTING");
     this._updateStateUI("Sichere Verbindung", "Wechsel zur HTTPS-Adresse …");
     this.navigate(target);
     return true;
+  }
+
+  _describeInsecureContext(error) {
+    if (window.isSecureContext) return error;
+    const target = this.secureUrl || this._cachedSecureUrl();
+    if (target) {
+      return new Error(
+        `Mikrofonzugriff benötigt HTTPS. Öffne Home Assistant unter ${target} statt über die lokale http-Adresse.`
+      );
+    }
+    return new Error(
+      "Mikrofonzugriff benötigt HTTPS. Diese Home-Assistant-Instanz hat keine HTTPS-Adresse — richte Nabu Casa oder ein SSL-Zertifikat ein."
+    );
+  }
+
+  _secureRedirectAttempted() {
+    try {
+      return globalThis.sessionStorage?.getItem(SECURE_REDIRECT_FLAG) === "1";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  _markSecureRedirectAttempted() {
+    try {
+      globalThis.sessionStorage?.setItem(SECURE_REDIRECT_FLAG, "1");
+    } catch (_error) {
+      // Private mode without storage — the protocol check still prevents loops.
+    }
+  }
+
+  _cachedSecureUrl() {
+    try {
+      return globalThis.localStorage?.getItem(SECURE_URL_CACHE_KEY) || null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  _cacheSecureUrl(url) {
+    if (!url) return;
+    try {
+      globalThis.localStorage?.setItem(SECURE_URL_CACHE_KEY, url);
+    } catch (_error) {
+      // Caching is an optimisation; a missing cache only costs one extra hop.
+    }
   }
 
   async _getAuth() {
@@ -959,6 +1032,7 @@ class VoiceAssistApp {
       : "pipeline";
     this.ttsEngine = config.tts_engine || null;
     this.secureUrl = config.secure_url || this.secureUrl;
+    this._cacheSecureUrl(this.secureUrl);
     if (!this.persistentNotice?.startsWith("TTS-Fehler:")) {
       this.persistentNotice = null;
     }
@@ -1037,11 +1111,24 @@ class VoiceAssistApp {
 
   _scheduleReconnect() {
     if (this.reconnectTimer || this.reconnecting || this.destroyed) return;
-    this._updateStateUI("Verbindung unterbrochen", "Neuer Versuch in 3 Sekunden …");
+    // Back off instead of hammering Home Assistant every 3s: a failed retry
+    // feeds straight back into this method, so a flat delay turns an outage
+    // into an endless tight loop.
+    const delay = Math.min(
+      RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts
+    );
+    const jittered = Math.round(delay * (0.75 + Math.random() * 0.5));
+    this.reconnectAttempts += 1;
+    const seconds = Math.round(jittered / 1000);
+    this._updateStateUI(
+      "Verbindung unterbrochen",
+      `Neuer Versuch in ${seconds} Sekunde${seconds === 1 ? "" : "n"} …`
+    );
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this._reconnect();
-    }, 3000);
+    }, jittered);
   }
 
   async _reconnect() {
@@ -1052,6 +1139,7 @@ class VoiceAssistApp {
     this._updateStateUI("Neu verbinden", "Home Assistant wird kontaktiert …");
     try {
       await this._connectPipeline();
+      this.reconnectAttempts = 0;
       if (this.userActivated && this.audio.isRecording) {
         await this._startListening();
       } else {

@@ -14,6 +14,11 @@ device-supplied UI configuration. It also verifies automatic microphone startup
 and the iPhone-voice fallback for a Home Assistant TTS HTTP 500 response, plus
 panel back navigation.
 
+Regression coverage for the 1.2.1 connection fixes: the HTTPS switch happens at
+most once per session, reconnects back off exponentially and reset after a
+success, the WebSocket keepalive closes a socket that stops answering pings, and
+the panel can start again after Home Assistant re-attaches it.
+
 Before committing, also validate syntax and whitespace:
 
 ```bash

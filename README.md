@@ -21,9 +21,10 @@ command or using a wake word.
 - Official Home Assistant iPhone widget guidance for one-tap access
 - Native back navigation
 - Bundled HA Voice Control integration icon on Home Assistant 2026.3 and newer
-- Automatic recovery after WebSocket interruptions
+- Automatic recovery after WebSocket interruptions, with a ping/pong keepalive
+  that stops router NAT timeouts from silently killing the connection
 - Automatic switch from an insecure internal URL to Home Assistant's configured
-  HTTPS URL before microphone activation
+  HTTPS URL, performed once per session before the app boots
 - Faster action start through smaller audio chunks and local end-of-speech
   detection matched to the selected VAD sensitivity
 - No frontend build step
@@ -134,9 +135,13 @@ and VAD settings are respected.
 
 ### “Mikrofonzugriff benötigt HTTPS”
 
-The URL used by the app is insecure. Version 1.2.0 automatically switches to a
-configured HTTPS Home Assistant URL. If the message remains, configure a valid
-external or internal HTTPS URL in Home Assistant and in the Companion App.
+The URL used by the app is insecure. The app switches to the configured HTTPS
+Home Assistant URL once per session, before the interface boots. If the message
+remains, Home Assistant has no HTTPS URL to switch to — configure a valid
+external or internal HTTPS URL (Nabu Casa or your own certificate) and set it in
+the Companion App. Browsers only grant microphone access on HTTPS or localhost,
+so an `http://192.168.x.x:8123` address can never record, regardless of app
+settings.
 
 ### Microphone permission was denied
 
