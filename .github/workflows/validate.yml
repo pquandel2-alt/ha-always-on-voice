@@ -1,0 +1,41 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  frontend-tests:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run test suite
+        run: node --test tests/frontend.test.js
+      - name: Check syntax
+        run: |
+          for file in custom_components/ha_always_on_voice/www/app/*.js \
+            custom_components/ha_always_on_voice/www/ha-voice-panel.js tests/*.js; do
+            node --check "$file"
+          done
+      - name: Check whitespace
+        run: git diff --check
