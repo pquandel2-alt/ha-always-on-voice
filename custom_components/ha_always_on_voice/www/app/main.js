@@ -29,6 +29,7 @@ class VoiceAssistApp {
     this.destroyed = false;
     this.starting = false;
     this.reconnecting = false;
+    this._connectPipelinePromise = null;
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
     this.restartTimer = null;
@@ -152,8 +153,9 @@ class VoiceAssistApp {
     });
     this.visibilityHandler = () => this._handleVisibilityChange();
     globalThis.document?.addEventListener?.("visibilitychange", this.visibilityHandler);
-    const synth = globalThis.speechSynthesis || globalThis.window?.speechSynthesis;
-    synth?.addEventListener?.("voiceschanged", () => this._populateBrowserVoices());
+    this.speechSynth = globalThis.speechSynthesis || globalThis.window?.speechSynthesis;
+    this.voicesChangedHandler = () => this._populateBrowserVoices();
+    this.speechSynth?.addEventListener?.("voiceschanged", this.voicesChangedHandler);
     this.root.addEventListener?.("keydown", (event) => {
       if (event.key === "Escape") this._closeSettings();
     });
@@ -206,7 +208,7 @@ class VoiceAssistApp {
   }
 
   _populateBrowserVoices() {
-    if (!this.browserVoiceSetting) return;
+    if (this.destroyed || !this.browserVoiceSetting) return;
     const synth = globalThis.speechSynthesis || globalThis.window?.speechSynthesis;
     const voices = synth?.getVoices?.() || [];
     const selected = this.browserVoiceURI;
@@ -516,7 +518,20 @@ class VoiceAssistApp {
     }
   }
 
-  async _connectPipeline() {
+  // activate() and _reconnect() are guarded by separate flags (this.starting,
+  // this.reconnecting) and can race each other into this method. Both callers
+  // want the same live pipeline, so fold concurrent calls into one in-flight
+  // promise instead of letting two connect attempts stomp on this.pipeline.
+  _connectPipeline() {
+    if (!this._connectPipelinePromise) {
+      this._connectPipelinePromise = this._doConnectPipeline().finally(() => {
+        this._connectPipelinePromise = null;
+      });
+    }
+    return this._connectPipelinePromise;
+  }
+
+  async _doConnectPipeline() {
     const { token, hassUrl } = await this._getAuth();
     this.pipeline?.disconnect();
     this.pipeline = new globalThis.HAVoicePipeline(hassUrl, token);
@@ -1417,6 +1432,7 @@ class VoiceAssistApp {
     }
     this.ttsPlayer?.pause();
     globalThis.speechSynthesis?.cancel();
+    this.speechSynth?.removeEventListener?.("voiceschanged", this.voicesChangedHandler);
     if (this.currentTtsObjectUrl) URL.revokeObjectURL(this.currentTtsObjectUrl);
     this.currentTtsObjectUrl = null;
     this.audio.stop();

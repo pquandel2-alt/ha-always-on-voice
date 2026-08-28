@@ -463,6 +463,46 @@ test("applies the selected browser voice, rate and volume", () => {
   }
 });
 
+test("removes the voiceschanged listener on destroy instead of leaking it", () => {
+  // speechSynthesis is a page-lifetime singleton, but ha-voice-panel.js
+  // constructs a new VoiceAssistApp on every re-attach. Without cleanup,
+  // every panel visit adds one more listener pointing at a destroyed app.
+  const listeners = new Map();
+  global.speechSynthesis = {
+    addEventListener: (type, handler) => listeners.set(type, handler),
+    removeEventListener: (type, handler) => {
+      if (listeners.get(type) === handler) listeners.delete(type);
+    },
+    getVoices: () => [],
+    cancel() {},
+  };
+
+  try {
+    const { app } = createVoiceApp();
+    assert.equal(listeners.has("voiceschanged"), true, "listener was never registered");
+
+    app.destroy();
+
+    assert.equal(
+      listeners.has("voiceschanged"),
+      false,
+      "destroy() left the voiceschanged listener registered on the shared synth"
+    );
+  } finally {
+    delete global.speechSynthesis;
+  }
+});
+
+test("ignores a stray voiceschanged event after destroy", () => {
+  const { app, nodes } = createVoiceApp();
+  nodes["#browserVoiceSetting"].replaceChildren = () => {
+    throw new Error("must not touch the DOM once destroyed");
+  };
+  app.destroyed = true;
+
+  assert.doesNotThrow(() => app._populateBrowserVoices());
+});
+
 test("pauses and resumes the microphone from the visible status control", async () => {
   const { app } = createVoiceApp();
   let stopped = false;
@@ -719,6 +759,36 @@ test("resets the backoff once a reconnect succeeds", async () => {
 
   // Otherwise a later, unrelated dropout would start at the 30s cap.
   assert.equal(app.reconnectAttempts, 0);
+});
+
+test("merges concurrent connect attempts into a single in-flight socket", async () => {
+  // activate() (guarded by this.starting) and _reconnect() (guarded by
+  // this.reconnecting) can call _connectPipeline() at the same moment. Two
+  // real connects would each overwrite this.pipeline, leaving the loser's
+  // handlers wired to a socket nothing else references.
+  const { app } = createVoiceApp();
+  let calls = 0;
+  let resolveConnect;
+  app._doConnectPipeline = () => {
+    calls++;
+    return new Promise((resolve) => {
+      resolveConnect = resolve;
+    });
+  };
+
+  const first = app._connectPipeline();
+  const second = app._connectPipeline();
+  assert.equal(calls, 1, "a second caller must reuse the in-flight connect");
+
+  resolveConnect();
+  await Promise.all([first, second]);
+
+  let laterCalls = 0;
+  app._doConnectPipeline = async () => {
+    laterCalls++;
+  };
+  await app._connectPipeline();
+  assert.equal(laterCalls, 1, "a later reconnect must open a fresh socket, not a stale promise");
 });
 
 test("keeps the socket alive with ping and clears the timeout on pong", () => {
