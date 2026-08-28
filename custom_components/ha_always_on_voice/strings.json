@@ -52,5 +52,11 @@
         "name": "TTS provider"
       }
     }
+  },
+  "issues": {
+    "no_https_url": {
+      "title": "HA Voice Control needs an HTTPS address",
+      "description": "The microphone can only be captured from a secure (https://) origin, so the panel cannot record audio over a plain http:// address. Configure an external HTTPS URL under Settings > System > Network — Nabu Casa, a reverse proxy, or your own certificate."
+    }
   }
 }

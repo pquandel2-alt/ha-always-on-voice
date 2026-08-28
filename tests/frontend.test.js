@@ -834,3 +834,16 @@ test("keeps all four version strings in lockstep", () => {
     `ha-voice-v${version.replace(/\./g, "")}`
   );
 });
+
+test("strings.json and translations/en.json stay in sync", () => {
+  // strings.json is the hassfest-validated source; translations/en.json is
+  // the file Home Assistant actually loads for custom integrations at
+  // runtime. Both must ship and both must agree, or the source-of-record
+  // text silently diverges from what English-speaking users ever see.
+  const integration = path.join(__dirname, "../custom_components/ha_always_on_voice");
+  const strings = JSON.parse(fs.readFileSync(path.join(integration, "strings.json"), "utf8"));
+  const en = JSON.parse(
+    fs.readFileSync(path.join(integration, "translations/en.json"), "utf8")
+  );
+  assert.deepEqual(en, strings);
+});

@@ -8,8 +8,10 @@ from pathlib import Path
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_CORE_CONFIG_UPDATE, Platform
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from .const import (
     DOMAIN,
@@ -22,6 +24,7 @@ from .websocket_api import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
 _FRONTEND_VERSION = "1.2.2"
+_ISSUE_NO_HTTPS = "no_https_url"
 
 PLATFORMS: list[Platform] = [
     Platform.ASSIST_SATELLITE,
@@ -40,7 +43,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_register_websocket_api(hass)
         store["websocket_api_registered"] = True
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _async_check_secure_url(hass)
+    entry.async_on_unload(
+        hass.bus.async_listen(
+            EVENT_CORE_CONFIG_UPDATE, lambda _event: _async_check_secure_url(hass)
+        )
+    )
     return True
+
+
+@callback
+def _async_check_secure_url(hass: HomeAssistant) -> None:
+    """Warn if Home Assistant has no HTTPS URL the panel can use for the microphone.
+
+    Browsers only expose navigator.mediaDevices on secure origins, so an
+    http:// address can never record audio no matter how the app is set up.
+    A repairs issue (rather than blocking the config flow) reflects that the
+    answer can change later in either direction and clears itself.
+    """
+    try:
+        get_url(hass, require_ssl=True, prefer_external=True)
+    except NoURLAvailableError:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            _ISSUE_NO_HTTPS,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=_ISSUE_NO_HTTPS,
+            learn_more_url="https://github.com/pquandel2-alt/ha-always-on-voice#requirements",
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, _ISSUE_NO_HTTPS)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

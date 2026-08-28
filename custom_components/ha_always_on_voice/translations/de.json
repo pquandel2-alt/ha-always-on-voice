@@ -52,5 +52,11 @@
         "name": "TTS-Anbieter"
       }
     }
+  },
+  "issues": {
+    "no_https_url": {
+      "title": "HA Voice Control benötigt eine HTTPS-Adresse",
+      "description": "Mikrofonzugriff benötigt HTTPS. Diese Home-Assistant-Instanz hat keine HTTPS-Adresse — richte unter Einstellungen > System > Netzwerk eine externe HTTPS-URL ein (Nabu Casa, ein Reverse-Proxy oder ein eigenes Zertifikat)."
+    }
   }
 }
