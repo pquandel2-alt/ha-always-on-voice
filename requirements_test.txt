@@ -1,1 +1,11 @@
 pytest-homeassistant-custom-component
+# Transitive requirements pulled in when our config flow / websocket_api
+# import homeassistant.components.assist_pipeline (which eagerly imports
+# conversation, tts, and its own vad/noise deps). pytest-homeassistant-
+# custom-component does not install these per-component requirements
+# itself, so they have to be pinned here to match core's manifests.
+hassil==3.11.0
+home-assistant-intents==2026.7.30
+pymicro-vad==1.0.1
+pyspeex-noise==1.0.2
+mutagen==1.48.1
