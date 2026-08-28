@@ -42,6 +42,11 @@ Companion App. This custom web panel uses the browser media API, which Apple
 only exposes to secure web contexts. An internal `http://` Home Assistant URL
 therefore cannot capture audio even if the native Assist dialog can.
 
+If no HTTPS URL is reachable, the integration raises a persistent warning
+under **Settings -> Repairs** ("HA Voice Control needs an HTTPS address")
+instead of only failing silently once the panel is opened. It clears itself
+automatically once an HTTPS URL is configured.
+
 ## Installation
 
 1. Install the repository through HACS as a custom integration, or copy
@@ -186,9 +191,17 @@ The frontend is vanilla JavaScript and CSS. Run the protocol/unit checks with:
 node --test tests/frontend.test.js
 ```
 
+The backend config flow and websocket API have a small pytest suite:
+
+```bash
+pip install -r requirements_test.txt
+pytest tests/
+```
+
 Restart Home Assistant after backend changes. Frontend asset versions are set in
 `custom_components/ha_always_on_voice/__init__.py` and
-`www/ha-voice-panel.js`.
+`www/ha-voice-panel.js`. See `TESTING.md` for the full manual regression
+checklist and details on both suites.
 
 ## License
 

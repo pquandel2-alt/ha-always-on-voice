@@ -25,6 +25,15 @@ switch after upgrading. The 1.2.1 guard was permanent for the whole browsing
 session, which left the panel stuck on the insecure origin showing
 "Mikrofonzugriff benötigt HTTPS" every time it was reopened.
 
+Regression coverage for the 1.3.0 fixes: the `voiceschanged` listener registered
+against the page-lifetime `speechSynthesis` singleton is removed in `destroy()`
+instead of leaking one listener per panel re-attach, and a stray event after
+destroy is a no-op. Concurrent calls into the pipeline connect path (from
+`activate()` and `_reconnect()` racing each other) are merged into a single
+in-flight socket instead of each overwriting `this.pipeline`. `strings.json`
+and `translations/en.json` are asserted to stay byte-identical, since HA loads
+the latter at runtime but hassfest only validates the former.
+
 Before committing, also validate syntax and whitespace:
 
 ```bash
@@ -34,6 +43,36 @@ for file in custom_components/ha_always_on_voice/www/app/*.js \
 done
 git diff --check
 ```
+
+Backend checks, from the repository root:
+
+```bash
+pip install -r requirements_test.txt
+pytest tests/
+```
+
+`test_config_flow.py` covers the single-instance config flow, and
+`test_websocket_api.py` covers the `sample_rate` bound that keeps
+`audioop.ratecv` from turning a 4 KB browser chunk into a ~65 MB upsample.
+
+## HTTPS Repairs issue (1.3.0)
+
+The panel cannot capture a microphone over plain `http://` no matter how it is
+configured, since browsers only expose `navigator.mediaDevices` on secure
+origins. Since 1.3.0 this is surfaced persistently under **Settings ->
+Repairs** instead of only failing silently the moment the panel is opened.
+
+1. Under **Settings -> System -> Network**, set `Internal URL` to an
+   `http://` address and clear `External URL`, then restart Home Assistant.
+2. Confirm a warning titled "HA Voice Control needs an HTTPS address" appears
+   under **Settings -> Repairs**.
+3. Set an HTTPS `External URL` (or restore Nabu Casa remote access) without
+   restarting.
+4. Confirm the Repairs entry disappears immediately -- it listens for network
+   config changes rather than only re-evaluating on the next restart.
+
+This is a read-only configuration change; no production trigger or sensor is
+touched.
 
 ## iPhone / Companion App regression test
 
@@ -75,7 +114,10 @@ the panel's top-level document instead of an iframe.
 2. Confirm a single reconnect countdown is shown.
 3. Re-enable networking.
 4. Confirm the panel reconnects once and returns to **Ich höre zu** without
-   multiplying WebSocket connections.
+   multiplying WebSocket connections. This also exercises the 1.3.0 fix for a
+   race between a manual retry and the automatic reconnect: exactly one
+   "Neu verbinden" state should ever be visible at a time, never two competing
+   sockets that leave the panel looking connected but unresponsive.
 
 ### Background and foreground
 
