@@ -8,13 +8,20 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.ha_always_on_voice.const import DOMAIN
 
+# manifest.json's "dependencies". Finishing a config flow makes HA load
+# these for real via async_setup_component() before our own (patched)
+# async_setup_entry ever runs. async_setup_component() short-circuits for
+# any domain already listed in hass.config.components, so pre-seeding it
+# avoids dragging in assist_pipeline/frontend and their own heavy,
+# environment-dependent deps (an ffmpeg binary, the hass_frontend
+# package, HA's exposed-entities store) for what is meant to be a config
+# flow test.
+_MANIFEST_DEPENDENCIES = ("frontend", "http", "assist_satellite", "assist_pipeline", "select")
+
 
 async def test_user_flow(hass: HomeAssistant) -> None:
     """The single form step creates an entry titled HA Voice Control."""
-    # async_init() finishing a flow with CREATE_ENTRY also runs the real
-    # async_setup_entry(), which pulls in assist_pipeline/frontend/ffmpeg
-    # and everything those depend on. That's out of scope for a config
-    # flow test, so patch it out the same way HA core's own tests do.
+    hass.config.components.update(_MANIFEST_DEPENDENCIES)
     with patch(
         "custom_components.ha_always_on_voice.async_setup_entry",
         return_value=True,
@@ -42,6 +49,7 @@ async def test_single_instance(hass: HomeAssistant) -> None:
     -- the config flow's own _abort_if_unique_id_configured() is
     unreachable and this is the check that actually fires.
     """
+    hass.config.components.update(_MANIFEST_DEPENDENCIES)
     with patch(
         "custom_components.ha_always_on_voice.async_setup_entry",
         return_value=True,
