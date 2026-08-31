@@ -1,3 +1,8 @@
+const AVATAR_SCENE_SCRIPT_SRC = document.currentScript?.src || '';
+const AVATAR_ASSET_BASE = AVATAR_SCENE_SCRIPT_SRC
+    ? new URL('../', AVATAR_SCENE_SCRIPT_SRC)
+    : new URL('/ha_voice_app/', window.location.origin);
+
 /**
  * ParticleScene: WebGL-rendered 3D particle system forming an abstract holographic
  * humanoid AI bust (head + neck + shoulders + upper chest).
@@ -364,13 +369,14 @@ class ParticleScene {
         ];
         for (const candidate of candidates) {
             try {
-                const response = await fetch(candidate.url, { cache: 'no-store' });
+                const assetUrl = new URL(candidate.url, AVATAR_ASSET_BASE).href;
+                const response = await fetch(assetUrl, { cache: 'no-store' });
                 if (!response.ok) continue;
                 const data = await response.json();
                 if (!Array.isArray(data?.particles) || !data.particles.length) continue;
                 this.sharedGeometryData = data;
                 this.geometryMode = candidate.mode;
-                this.log(`Geometry source: ${candidate.mode} (${candidate.url}, ${data.particles.length} points)`);
+                this.log(`Geometry source: ${candidate.mode} (${assetUrl}, ${data.particles.length} points)`);
                 return;
             } catch (error) {
                 this.log(`Geometry source ${candidate.url} failed: ${error?.message || error}`);
@@ -647,7 +653,7 @@ class ParticleScene {
                 region: regionId(particle),
                 color: new THREE.Color(particle.color[0] / 255, particle.color[1] / 255, particle.color[2] / 255),
                 size: particle.baseSize * 2.08 * densityCompensation * this.layout.s * (
-                    particle.region === 'faceCore' ? 0.98 :
+                    particle.region === 'faceCore' ? 1.26 :
                         particle.region === 'chestCore' ? 1.30 :
                         particle.region === 'headBand' ? 1.18 :
                             (particle.region === 'shoulderBand' || particle.region === 'neckEnergy' ||
@@ -1524,10 +1530,13 @@ class ParticleScene {
     }
 
     log(msg) {
-        if (window.particleInterface) {
+        if (typeof window.particleInterface?.log === 'function') {
             window.particleInterface.log(msg);
         } else {
             console.log(msg);
         }
     }
 }
+
+// Loaded lazily as a classic script by main.js; expose the renderer contract explicitly.
+globalThis.ParticleScene = ParticleScene;

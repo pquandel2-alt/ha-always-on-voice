@@ -89,9 +89,10 @@ The **Voice output** selector offers three modes:
 - **iPhone / browser voice** always uses the device's system speech synthesis.
 - **Muted** disables spoken responses.
 
-Seven animation styles are available: **Fluid orb**, **Liquid equalizer**,
+Eight animation styles are available: **Fluid orb**, **Liquid equalizer**,
 **Audio spectrum**, **Aurora flow**, **Pulse rings**, **Constellation**, and
-**Minimal**. The Liquid equalizer uses live microphone frequencies to deform
+**Minimal**, plus the **Particle avatar** shared with the DashVoice tablet app.
+The Liquid equalizer uses live microphone frequencies to deform
 the fluid surface, changes from turquoise to blue while the user speaks, and
 turns violet with a speech-like pulse during voice output. Changes to the
 animation selector are pushed to an open HA Voice Control panel immediately.

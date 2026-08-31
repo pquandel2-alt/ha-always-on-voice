@@ -20,10 +20,16 @@ const SECURE_URL_CACHE_KEY = "haVoiceSecureUrl";
 // standalone PWA (relative ./main.js from index.html) — both resolve here.
 const MAIN_SCRIPT_SRC = globalThis.document?.currentScript?.src || "";
 
-function loadAvatarScript(src) {
+function loadAvatarScript(src, readyCheck) {
+  if (readyCheck?.()) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const existing = globalThis.document?.querySelector(`script[data-ha-voice-script="${src}"]`);
     if (existing) {
+      if (existing.dataset.loaded === "true") {
+        if (readyCheck?.()) resolve();
+        else reject(new Error(`Avatar-Asset ist geladen, aber nicht bereit: ${src}`));
+        return;
+      }
       existing.addEventListener("load", resolve, { once: true });
       existing.addEventListener("error", reject, { once: true });
       return;
@@ -31,7 +37,10 @@ function loadAvatarScript(src) {
     const script = globalThis.document.createElement("script");
     script.src = src;
     script.dataset.haVoiceScript = src;
-    script.onload = resolve;
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
     script.onerror = () => reject(new Error(`Avatar-Asset fehlgeschlagen: ${src}`));
     globalThis.document.head.appendChild(script);
   });
@@ -1457,6 +1466,9 @@ class VoiceAssistApp {
   _setState(state) {
     this.state = state;
     this.container.className = `state-${state.toLowerCase()} animation-${this.animationStyle}`;
+    if (this.avatarLoadFailed && this.animationStyle === "avatar") {
+      this.container.classList.add("avatar-load-error");
+    }
     this._syncMicToggle();
     this._forwardAvatarState(state);
   }
@@ -1487,14 +1499,20 @@ class VoiceAssistApp {
     const jsBase = MAIN_SCRIPT_SRC ? new URL("./js/", MAIN_SCRIPT_SRC) : null;
     this.avatarScenePromise = (async () => {
       if (!jsBase) throw new Error("Avatar-Basis-URL konnte nicht ermittelt werden.");
-      await loadAvatarScript(new URL("three.min.js", jsBase).href);
-      await loadAvatarScript(new URL("avatar-particle-scene.js", jsBase).href);
+      await loadAvatarScript(new URL("three.min.js", jsBase).href, () => Boolean(globalThis.THREE));
+      await loadAvatarScript(
+        new URL("avatar-particle-scene.js", jsBase).href,
+        () => Boolean(globalThis.ParticleScene),
+      );
       const SceneClass = globalThis.ParticleScene;
       if (!SceneClass) throw new Error("Partikel-Avatar-Skript wurde nicht korrekt geladen.");
+      this.avatarLoadFailed = false;
+      this.container.classList.remove("avatar-load-error");
       this.avatarAssemblyDone = false;
       this.avatarPendingState = null;
       const scene = new SceneClass(this.avatarCanvas, this.avatarCanvas.parentElement);
       globalThis.particleInterface = {
+        log: (message) => console.debug(`[Partikel-Avatar] ${message}`),
         setState: (state) => {
           if (state === "IDLE" && !this.avatarAssemblyDone) {
             this.avatarAssemblyDone = true;
@@ -1513,6 +1531,8 @@ class VoiceAssistApp {
       return scene;
     })().catch((error) => {
       console.error("Partikel-Avatar konnte nicht gestartet werden", error);
+      this.avatarLoadFailed = true;
+      this.container?.classList?.add("avatar-load-error");
       this.avatarScenePromise = null;
       this.avatarScene = null;
       return null;

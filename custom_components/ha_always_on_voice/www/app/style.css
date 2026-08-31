@@ -611,6 +611,16 @@ button {
   display: block;
 }
 
+/* Never leave Voice Control visually empty when WebGL or an avatar asset fails. */
+.animation-avatar.avatar-load-error .orb,
+.animation-avatar.avatar-load-error .orb-aura {
+  display: block;
+}
+
+.animation-avatar.avatar-load-error #avatarCanvas {
+  display: none;
+}
+
 @keyframes orb-float {
   0%, 100% { transform: translate3d(0, 0, 0) scale(0.99); }
   50% { transform: translate3d(0, -0.28rem, 0) scale(1.012); }

@@ -102,6 +102,24 @@ test("renders vector animation cores without CSS border clipping", () => {
   assert.doesNotMatch(orbRule, /border-radius/);
 });
 
+test("ships a loadable particle avatar instead of an empty animation canvas", () => {
+  const appDir = path.join(
+    __dirname,
+    "../custom_components/ha_always_on_voice/www/app"
+  );
+  const main = fs.readFileSync(path.join(appDir, "main.js"), "utf8");
+  const scene = fs.readFileSync(path.join(appDir, "js/avatar-particle-scene.js"), "utf8");
+  const target = JSON.parse(fs.readFileSync(path.join(appDir, "avatar-target.json"), "utf8"));
+
+  assert.match(main, /log: \(message\) => console\.debug/);
+  assert.match(main, /Boolean\(globalThis\.ParticleScene\)/);
+  assert.match(scene, /globalThis\.ParticleScene = ParticleScene/);
+  assert.match(scene, /new URL\(candidate\.url, AVATAR_ASSET_BASE\)/);
+  assert.match(scene, /typeof window\.particleInterface\?\.log === 'function'/);
+  assert.equal(target.particleCount, 18000);
+  assert.equal(target.particles.length, 18000);
+});
+
 test("converts normalized float audio to signed 16-bit PCM", () => {
   const capture = new AudioCapture();
   assert.deepEqual(

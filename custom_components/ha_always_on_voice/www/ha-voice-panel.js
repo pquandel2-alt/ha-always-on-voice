@@ -1,5 +1,5 @@
 const APP_BASE = "/ha_voice_app";
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.4.1";
 
 function loadVoiceScript(name, readyCheck) {
   if (readyCheck()) return Promise.resolve();

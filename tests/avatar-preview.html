@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HA Voice Control – Partikel-Avatar Preview</title>
+  <link rel="stylesheet" href="../custom_components/ha_always_on_voice/www/app/style.css">
+</head>
+<body>
+  <div id="voiceMount"></div>
+  <script src="../custom_components/ha_always_on_voice/www/app/ui.js"></script>
+  <script>document.querySelector('#voiceMount').innerHTML = globalThis.HAVoiceMarkup;</script>
+  <script src="../custom_components/ha_always_on_voice/www/app/audio.js"></script>
+  <script src="../custom_components/ha_always_on_voice/www/app/ha-ws.js"></script>
+  <script src="../custom_components/ha_always_on_voice/www/app/main.js"></script>
+  <script>
+    const preview = new globalThis.VoiceAssistApp();
+    window.avatarPreview = preview;
+    preview._applyRunConfiguration({ animation_style: 'avatar', tts_playback: 'muted' });
+  </script>
+</body>
+</html>
