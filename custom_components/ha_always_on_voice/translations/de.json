@@ -35,7 +35,8 @@
           "aurora": "Aurora-Fluss",
           "pulse": "Puls-Ringe",
           "constellation": "Sternbild",
-          "minimal": "Minimalistisch"
+          "minimal": "Minimalistisch",
+          "avatar": "Partikel-Avatar"
         }
       },
       "tts_playback": {

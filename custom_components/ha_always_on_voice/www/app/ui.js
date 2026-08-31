@@ -34,6 +34,7 @@ globalThis.HAVoiceMarkup = `
       <section class="animation-container" aria-label="HA Voice Control Status">
         <div class="orb-aura" aria-hidden="true"></div>
         <canvas id="frequencyRing" aria-hidden="true"></canvas>
+        <canvas id="avatarCanvas" aria-hidden="true"></canvas>
         <div class="orbit orbit-outer" aria-hidden="true"><span></span></div>
         <div class="orbit orbit-inner" aria-hidden="true"><span></span></div>
         <div class="pulse-rings" aria-hidden="true"><span></span><span></span><span></span></div>

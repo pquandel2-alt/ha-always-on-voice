@@ -4,7 +4,7 @@
  * last successful shell remains available as an offline fallback.
  */
 
-const CACHE_NAME = "ha-voice-v130";
+const CACHE_NAME = "ha-voice-v140";
 const SHELL_URLS = [
   "/ha_voice_app/index.html",
   "/ha_voice_app/ui.js",

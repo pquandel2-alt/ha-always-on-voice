@@ -14,6 +14,28 @@ const SECURE_REDIRECT_COOLDOWN_MS = 15000;
 // Remembering the HTTPS origin lets the next start redirect immediately
 // instead of booting the whole app first.
 const SECURE_URL_CACHE_KEY = "haVoiceSecureUrl";
+// Captured synchronously while this classic script is the one executing, so the
+// avatar assets can be lazy-loaded from the same directory regardless of whether
+// this app runs as the embedded HA panel (/ha_voice_app/main.js) or the
+// standalone PWA (relative ./main.js from index.html) — both resolve here.
+const MAIN_SCRIPT_SRC = globalThis.document?.currentScript?.src || "";
+
+function loadAvatarScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = globalThis.document?.querySelector(`script[data-ha-voice-script="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = globalThis.document.createElement("script");
+    script.src = src;
+    script.dataset.haVoiceScript = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Avatar-Asset fehlgeschlagen: ${src}`));
+    globalThis.document.head.appendChild(script);
+  });
+}
 
 class VoiceAssistApp {
   constructor({ root = document, authProvider = null } = {}) {
@@ -44,6 +66,10 @@ class VoiceAssistApp {
     this.runEnded = false;
     this.runFailed = false;
     this.animationStyle = "orb";
+    this.avatarScene = null;
+    this.avatarScenePromise = null;
+    this.avatarAssemblyDone = false;
+    this.avatarPendingState = null;
     this.ttsPlayback = "pipeline";
     this.ttsEngine = null;
     this.ttsText = "";
@@ -94,6 +120,7 @@ class VoiceAssistApp {
     this.ttsPlayer = root.querySelector("#ttsPlayer");
     this.ttsSourceLabel = root.querySelector("#ttsSourceLabel");
     this.frequencyCanvas = root.querySelector("#frequencyRing");
+    this.avatarCanvas = root.querySelector("#avatarCanvas");
     this.voiceCore = root.querySelector(".voice-core-svg");
     this.equalizerPaths = {
       main: root.querySelector("#equalizerMainPath"),
@@ -266,6 +293,7 @@ class VoiceAssistApp {
       pulse: "Puls-Ringe",
       constellation: "Sternbild",
       minimal: "Minimalistisch",
+      avatar: "Partikel-Avatar",
       pipeline: "Aus Assist-Pipeline",
       browser: "iPhone-/Browser-Stimme",
       muted: "Stumm",
@@ -370,6 +398,11 @@ class VoiceAssistApp {
 
   _handleVisibilityChange() {
     const hidden = globalThis.document?.visibilityState === "hidden";
+    if (hidden) {
+      this.avatarScene?.pause?.();
+    } else {
+      this.avatarScene?.resume?.();
+    }
     if (hidden && this.audio.isRecording) {
       this._pauseListening({ background: true });
       return;
@@ -1047,11 +1080,19 @@ class VoiceAssistApp {
 
   _applyRunConfiguration(config = {}) {
     const allowedStyles = new Set([
-      "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal",
+      "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal", "avatar",
     ]);
+    const previousStyle = this.animationStyle;
     this.animationStyle = allowedStyles.has(config.animation_style)
       ? config.animation_style
       : "orb";
+    if (this.animationStyle !== previousStyle) {
+      if (this.animationStyle === "avatar") {
+        this._ensureAvatarScene();
+      } else if (previousStyle === "avatar") {
+        this._teardownAvatarScene();
+      }
+    }
     this.ttsPlayback = ["pipeline", "browser", "muted"].includes(config.tts_playback)
       ? config.tts_playback
       : "pipeline";
@@ -1197,6 +1238,14 @@ class VoiceAssistApp {
   }
 
   _drawFrequencyRing(frequencyData) {
+    if (this.animationStyle === "avatar") {
+      if (frequencyData.length && this.avatarScene) {
+        let sum = 0;
+        for (let i = 0; i < frequencyData.length; i++) sum += frequencyData[i];
+        this.avatarScene.setAudioLevel?.(sum / frequencyData.length / 255);
+      }
+      return;
+    }
     if (this.animationStyle === "liquid_equalizer") {
       this._drawLiquidEqualizer(frequencyData);
       return;
@@ -1409,6 +1458,74 @@ class VoiceAssistApp {
     this.state = state;
     this.container.className = `state-${state.toLowerCase()} animation-${this.animationStyle}`;
     this._syncMicToggle();
+    this._forwardAvatarState(state);
+  }
+
+  _forwardAvatarState(state) {
+    if (this.animationStyle !== "avatar") return;
+    const avatarState = {
+      CONNECTING: "IDLE",
+      STARTING: "IDLE",
+      READY: "IDLE",
+      PAUSED: "IDLE",
+      LISTENING: "LISTENING",
+      HEARING: "LISTENING",
+      PROCESSING: "THINKING",
+      SPEAKING: "SPEAKING",
+      ERROR: "ERROR",
+    }[state];
+    if (!avatarState) return;
+    if (!this.avatarAssemblyDone) {
+      this.avatarPendingState = avatarState;
+      return;
+    }
+    this.avatarScene?.setState?.(avatarState);
+  }
+
+  _ensureAvatarScene() {
+    if (this.avatarScenePromise || !this.avatarCanvas) return this.avatarScenePromise;
+    const jsBase = MAIN_SCRIPT_SRC ? new URL("./js/", MAIN_SCRIPT_SRC) : null;
+    this.avatarScenePromise = (async () => {
+      if (!jsBase) throw new Error("Avatar-Basis-URL konnte nicht ermittelt werden.");
+      await loadAvatarScript(new URL("three.min.js", jsBase).href);
+      await loadAvatarScript(new URL("avatar-particle-scene.js", jsBase).href);
+      const SceneClass = globalThis.ParticleScene;
+      if (!SceneClass) throw new Error("Partikel-Avatar-Skript wurde nicht korrekt geladen.");
+      this.avatarAssemblyDone = false;
+      this.avatarPendingState = null;
+      const scene = new SceneClass(this.avatarCanvas, this.avatarCanvas.parentElement);
+      globalThis.particleInterface = {
+        setState: (state) => {
+          if (state === "IDLE" && !this.avatarAssemblyDone) {
+            this.avatarAssemblyDone = true;
+            if (this.avatarPendingState) {
+              scene.setState?.(this.avatarPendingState);
+              this.avatarPendingState = null;
+            }
+          }
+        },
+      };
+      await scene.prepare();
+      scene.configure({ quality: "AUTO", animationSpeedMultiplier: 1, assemblyEnabled: true });
+      scene.start();
+      scene.setState("ASSEMBLING");
+      this.avatarScene = scene;
+      return scene;
+    })().catch((error) => {
+      console.error("Partikel-Avatar konnte nicht gestartet werden", error);
+      this.avatarScenePromise = null;
+      this.avatarScene = null;
+      return null;
+    });
+    return this.avatarScenePromise;
+  }
+
+  _teardownAvatarScene() {
+    this.avatarScene?.dispose?.();
+    this.avatarScene = null;
+    this.avatarScenePromise = null;
+    this.avatarAssemblyDone = false;
+    this.avatarPendingState = null;
   }
 
   _updateStateUI(title, detail = "") {
@@ -1437,6 +1554,7 @@ class VoiceAssistApp {
     this.currentTtsObjectUrl = null;
     this.audio.stop();
     this.pipeline?.disconnect();
+    this._teardownAvatarScene();
   }
 }
 

@@ -35,7 +35,8 @@
           "aurora": "Aurora flow",
           "pulse": "Pulse rings",
           "constellation": "Constellation",
-          "minimal": "Minimal"
+          "minimal": "Minimal",
+          "avatar": "Particle avatar"
         }
       },
       "tts_playback": {

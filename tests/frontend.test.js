@@ -578,7 +578,7 @@ test("applies animation and TTS settings supplied by the device", () => {
   assert.equal(nodes["#ttsSourceLabel"].textContent, "iPhone-/Browser-Stimme");
 
   for (const style of [
-    "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal",
+    "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal", "avatar",
   ]) {
     app._applyRunConfiguration({ animation_style: style });
     assert.equal(app.animationStyle, style);

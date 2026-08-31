@@ -261,6 +261,17 @@ button {
   pointer-events: none;
 }
 
+#avatarCanvas {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  border-radius: 1.2rem;
+  pointer-events: none;
+}
+
 .orb-aura {
   position: absolute;
   width: 13.5rem;
@@ -586,6 +597,18 @@ button {
 .animation-minimal.state-hearing .orb,
 .animation-minimal.state-speaking .orb {
   animation: orb-hearing 1.4s ease-in-out infinite;
+}
+
+.animation-avatar .orb,
+.animation-avatar .orb-aura,
+.animation-avatar .orbit,
+.animation-avatar .pulse-rings,
+.animation-avatar #frequencyRing {
+  display: none;
+}
+
+.animation-avatar #avatarCanvas {
+  display: block;
 }
 
 @keyframes orb-float {

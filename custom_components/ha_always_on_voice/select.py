@@ -107,6 +107,7 @@ class AlwaysOnVoiceAnimationStyleSelect(_RestoredConfigSelect):
         "pulse",
         "constellation",
         "minimal",
+        "avatar",
     ]
     _attr_current_option = "orb"
 
