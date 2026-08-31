@@ -113,16 +113,26 @@ test("ships a loadable particle avatar instead of an empty animation canvas", ()
 
   assert.match(main, /log: \(message\) => console\.debug/);
   assert.match(main, /Boolean\(globalThis\.ParticleScene\)/);
+  assert.match(main, /versionedAvatarUrl/);
+  assert.match(main, /cache: "no-store"/);
+  assert.match(main, /await Promise\.all/);
+  assert.match(main, /scene\.prepare\(targetData\)/);
   assert.match(main, /ha_voice_control_animation/);
   assert.match(scene, /globalThis\.ParticleScene = ParticleScene/);
-  assert.match(scene, /new URL\(candidate\.url, AVATAR_ASSET_BASE\)/);
+  assert.match(scene, /versionedAssetUrl\(candidate\.url\)/);
   assert.match(scene, /particle\.region !== 'ambient' && particle\.region !== 'sideTrail'/);
   assert.match(scene, /alpha: true/);
   assert.match(scene, /setClearColor\(0x000000, 0\)/);
   assert.doesNotMatch(scene, /scene\.background = new THREE\.Color\(0x000000\)/);
   assert.match(scene, /typeof window\.particleInterface\?\.log === 'function'/);
-  assert.equal(target.particleCount, 18000);
-  assert.equal(target.particles.length, 18000);
+  assert.equal(target.format, "ha-voice-columnar-v1");
+  assert.equal(target.particleCount, 17267);
+  assert.equal(target.assemblyDurationMs, 1800);
+  assert.equal(target.p.length, target.particleCount * 3);
+  assert.equal(target.c.length, target.particleCount * 3);
+  assert.equal(target.a.length, target.particleCount * 6);
+  assert.ok(!target.regions.includes("ambient"));
+  assert.ok(!target.regions.includes("sideTrail"));
 });
 
 test("converts normalized float audio to signed 16-bit PCM", () => {

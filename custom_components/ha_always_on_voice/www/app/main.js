@@ -19,6 +19,15 @@ const SECURE_URL_CACHE_KEY = "haVoiceSecureUrl";
 // this app runs as the embedded HA panel (/ha_voice_app/main.js) or the
 // standalone PWA (relative ./main.js from index.html) — both resolve here.
 const MAIN_SCRIPT_SRC = globalThis.document?.currentScript?.src || "";
+const MAIN_ASSET_VERSION = MAIN_SCRIPT_SRC
+  ? new URL(MAIN_SCRIPT_SRC).searchParams.get("v") || ""
+  : "";
+
+function versionedAvatarUrl(name, base) {
+  const url = new URL(name, base);
+  if (MAIN_ASSET_VERSION) url.searchParams.set("v", MAIN_ASSET_VERSION);
+  return url.href;
+}
 
 function loadAvatarScript(src, readyCheck) {
   if (readyCheck?.()) return Promise.resolve();
@@ -1516,11 +1525,17 @@ class VoiceAssistApp {
     const jsBase = MAIN_SCRIPT_SRC ? new URL("./js/", MAIN_SCRIPT_SRC) : null;
     this.avatarScenePromise = (async () => {
       if (!jsBase) throw new Error("Avatar-Basis-URL konnte nicht ermittelt werden.");
-      await loadAvatarScript(new URL("three.min.js", jsBase).href, () => Boolean(globalThis.THREE));
-      await loadAvatarScript(
-        new URL("avatar-particle-scene.js", jsBase).href,
-        () => Boolean(globalThis.ParticleScene),
-      );
+      const targetPromise = fetch(versionedAvatarUrl("../avatar-target.json", jsBase), {
+        cache: "no-store",
+      }).then(response => response.ok ? response.json() : null).catch(() => null);
+      const [, , targetData] = await Promise.all([
+        loadAvatarScript(versionedAvatarUrl("three.min.js", jsBase), () => Boolean(globalThis.THREE)),
+        loadAvatarScript(
+          versionedAvatarUrl("avatar-particle-scene.js", jsBase),
+          () => Boolean(globalThis.ParticleScene),
+        ),
+        targetPromise,
+      ]);
       const SceneClass = globalThis.ParticleScene;
       if (!SceneClass) throw new Error("Partikel-Avatar-Skript wurde nicht korrekt geladen.");
       this.avatarLoadFailed = false;
@@ -1540,7 +1555,7 @@ class VoiceAssistApp {
           }
         },
       };
-      await scene.prepare();
+      await scene.prepare(targetData);
       scene.configure({ quality: "AUTO", animationSpeedMultiplier: 1, assemblyEnabled: true });
       scene.start();
       scene.setState("ASSEMBLING");

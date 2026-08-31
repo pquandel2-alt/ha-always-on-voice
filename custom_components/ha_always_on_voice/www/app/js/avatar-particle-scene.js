@@ -2,6 +2,15 @@ const AVATAR_SCENE_SCRIPT_SRC = document.currentScript?.src || '';
 const AVATAR_ASSET_BASE = AVATAR_SCENE_SCRIPT_SRC
     ? new URL('../', AVATAR_SCENE_SCRIPT_SRC)
     : new URL('/ha_voice_app/', window.location.origin);
+const AVATAR_ASSET_VERSION = AVATAR_SCENE_SCRIPT_SRC
+    ? new URL(AVATAR_SCENE_SCRIPT_SRC).searchParams.get('v') || ''
+    : '';
+
+function versionedAssetUrl(name) {
+    const url = new URL(name, AVATAR_ASSET_BASE);
+    if (AVATAR_ASSET_VERSION) url.searchParams.set('v', AVATAR_ASSET_VERSION);
+    return url.href;
+}
 
 /**
  * ParticleScene: WebGL-rendered 3D particle system forming an abstract holographic
@@ -338,7 +347,7 @@ class ParticleScene {
         this.config = {
             quality: 'AUTO',
             particleCount: ParticleScene.QUALITY_PRESETS.MEDIUM,
-            assemblyDurationMs: 4200,
+            assemblyDurationMs: 1800,
             animationSpeedMultiplier: 1.0,
             assemblyEnabled: true,
             idleScale: 1.0,
@@ -365,22 +374,34 @@ class ParticleScene {
      * generateTargetGeometry() falls back to the fully in-JS procedural
      * generators (genHeadSurface() etc.) as the last-resort geometry source.
      */
-    async prepare() {
+    async prepare(preloadedData = null) {
+        const acceptGeometry = (data, mode, sourceLabel) => {
+            const legacyValid = Array.isArray(data?.particles) && data.particles.length > 0;
+            const compactValid = data?.format === 'ha-voice-columnar-v1' &&
+                Array.isArray(data.p) && Array.isArray(data.c) && Array.isArray(data.a) &&
+                Number.isInteger(data.particleCount) && data.particleCount > 0;
+            if (!legacyValid && !compactValid) return false;
+            this.sharedGeometryData = data;
+            this.geometryMode = mode;
+            if (Number.isFinite(data.assemblyDurationMs)) {
+                this.config.assemblyDurationMs = data.assemblyDurationMs;
+            }
+            this.log(`Geometry source: ${mode} (${sourceLabel}, ${data.particleCount || data.particles.length} points)`);
+            return true;
+        };
+        if (acceptGeometry(preloadedData, 'REFERENCE_TARGET', 'preloaded avatar-target.json')) return;
+
         const candidates = [
             { url: 'avatar-target.json', mode: 'REFERENCE_TARGET' },
             { url: 'avatar-geometry.json', mode: 'PROCEDURAL_FALLBACK' },
         ];
         for (const candidate of candidates) {
             try {
-                const assetUrl = new URL(candidate.url, AVATAR_ASSET_BASE).href;
+                const assetUrl = versionedAssetUrl(candidate.url);
                 const response = await fetch(assetUrl, { cache: 'no-store' });
                 if (!response.ok) continue;
                 const data = await response.json();
-                if (!Array.isArray(data?.particles) || !data.particles.length) continue;
-                this.sharedGeometryData = data;
-                this.geometryMode = candidate.mode;
-                this.log(`Geometry source: ${candidate.mode} (${assetUrl}, ${data.particles.length} points)`);
-                return;
+                if (acceptGeometry(data, candidate.mode, assetUrl)) return;
             } catch (error) {
                 this.log(`Geometry source ${candidate.url} failed: ${error?.message || error}`);
             }
@@ -619,19 +640,20 @@ class ParticleScene {
 
     /** Converts normalized 16:10 target-field coordinates into shallow 2.5D world points. */
     generateSharedTargetGeometry() {
-        // The tablet screensaver may use a detached aura and fragmented side trails, but
-        // Voice Control intentionally renders only the sculpture on a clean background.
-        const source = this.sharedGeometryData.particles.filter(
+        const compact = this.sharedGeometryData.format === 'ha-voice-columnar-v1';
+        // Legacy targets are filtered here; the compact Voice Control target is pre-filtered.
+        const source = compact ? null : this.sharedGeometryData.particles.filter(
             particle => particle.region !== 'ambient' && particle.region !== 'sideTrail'
         );
-        const requested = Math.min(this.config.particleCount, source.length);
+        const sourceLength = compact ? this.sharedGeometryData.particleCount : source.length;
+        const requested = Math.min(this.config.particleCount, sourceLength);
         // Downsampling must not visually change the sculpture. Sparse quality levels keep
         // exactly the same target field and receive only a bounded point-size compensation.
-        const densityCompensation = Math.min(1.5, Math.sqrt(source.length / requested));
+        const densityCompensation = Math.min(1.5, Math.sqrt(sourceLength / requested));
         const worldHeight = 400 * this.layout.s;
         const worldWidth = worldHeight * 1.6;
-        const regionId = particle => {
-            switch (particle.region) {
+        const regionId = (region, brightness) => {
+            switch (region) {
                 case 'headShell': return REGION.HEAD_SURFACE;
                 case 'headBack': return REGION.HEAD_BACK;
                 case 'headMid': return REGION.HEAD_MID;
@@ -640,7 +662,7 @@ class ParticleScene {
                 case 'headRimInner': return REGION.HEAD_RIM_INNER;
                 case 'headRimMain': return REGION.HEAD_RIM_MAIN;
                 case 'headRimHalo': return REGION.HEAD_RIM;
-                case 'faceCore': return particle.brightness > 0.72 ? REGION.FACE_CORE_INNER : REGION.FACE_CORE_OUTER;
+                case 'faceCore': return brightness > 0.72 ? REGION.FACE_CORE_INNER : REGION.FACE_CORE_OUTER;
                 case 'neckEnergy': return REGION.NECK_FLOW;
                 case 'shoulderBand':
                 case 'shoulderSurface': return REGION.SHOULDER_FLOW;
@@ -653,23 +675,40 @@ class ParticleScene {
         };
         this.targetPoints = new Array(requested);
         for (let i = 0; i < requested; i++) {
-            const particle = source[Math.floor(i * source.length / requested)];
+            const sourceIndex = Math.floor(i * sourceLength / requested);
+            const attributeIndex = sourceIndex * 6;
+            const positionIndex = sourceIndex * 3;
+            const particle = compact ? null : source[sourceIndex];
+            const region = compact
+                ? this.sharedGeometryData.regions[this.sharedGeometryData.a[attributeIndex]]
+                : particle.region;
+            const brightness = compact ? this.sharedGeometryData.a[attributeIndex + 3] : particle.brightness;
+            const targetX = compact ? this.sharedGeometryData.p[positionIndex] : particle.targetX;
+            const targetY = compact ? this.sharedGeometryData.p[positionIndex + 1] : particle.targetY;
+            const targetZ = compact ? this.sharedGeometryData.p[positionIndex + 2] : particle.targetZ;
+            const red = compact ? this.sharedGeometryData.c[positionIndex] : particle.color[0];
+            const green = compact ? this.sharedGeometryData.c[positionIndex + 1] : particle.color[1];
+            const blue = compact ? this.sharedGeometryData.c[positionIndex + 2] : particle.color[2];
+            const baseSize = compact ? this.sharedGeometryData.a[attributeIndex + 1] : particle.baseSize;
+            const baseAlpha = compact ? this.sharedGeometryData.a[attributeIndex + 2] : particle.baseAlpha;
+            const flowT = compact ? this.sharedGeometryData.a[attributeIndex + 4] : particle.flowT;
+            const seed = compact ? this.sharedGeometryData.a[attributeIndex + 5] : particle.seed / sourceLength;
             this.targetPoints[i] = {
-                x: (particle.targetX - 0.5) * worldWidth,
-                y: (0.5 - particle.targetY) * worldHeight,
-                z: particle.targetZ * worldHeight,
-                region: regionId(particle),
-                color: new THREE.Color(particle.color[0] / 255, particle.color[1] / 255, particle.color[2] / 255),
-                size: particle.baseSize * 2.08 * densityCompensation * this.layout.s * (
-                    particle.region === 'faceCore' ? 1.26 :
-                        particle.region === 'chestCore' ? 1.30 :
-                        particle.region === 'headBand' ? 1.18 :
-                            (particle.region === 'shoulderBand' || particle.region === 'neckEnergy' ||
-                                particle.region === 'chestBand') ? 1.20 : 1.0
+                x: (targetX - 0.5) * worldWidth,
+                y: (0.5 - targetY) * worldHeight,
+                z: targetZ * worldHeight,
+                region: regionId(region, brightness),
+                color: new THREE.Color(red / 255, green / 255, blue / 255),
+                size: baseSize * 2.08 * densityCompensation * this.layout.s * (
+                    region === 'faceCore' ? 1.26 :
+                        region === 'chestCore' ? 1.30 :
+                        region === 'headBand' ? 1.18 :
+                            (region === 'shoulderBand' || region === 'neckEnergy' ||
+                                region === 'chestBand') ? 1.20 : 1.0
                 ),
-                baseAlpha: particle.baseAlpha,
-                pathT: particle.flowT,
-                seed: particle.seed / source.length,
+                baseAlpha,
+                pathT: flowT,
+                seed,
             };
         }
         this.config.particleCount = requested;
