@@ -1,5 +1,5 @@
 globalThis.HAVoiceMarkup = `
-  <div id="app" class="state-idle">
+  <div id="app" class="state-idle animation-pending">
     <audio id="ttsPlayer" playsinline preload="auto" aria-hidden="true"></audio>
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>

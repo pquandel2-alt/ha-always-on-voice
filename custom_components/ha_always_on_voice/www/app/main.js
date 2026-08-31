@@ -74,7 +74,8 @@ class VoiceAssistApp {
     this.ttsWasRequested = false;
     this.runEnded = false;
     this.runFailed = false;
-    this.animationStyle = "orb";
+    // Avoid flashing the default orb before the HA animation select arrives.
+    this.animationStyle = "pending";
     this.avatarScene = null;
     this.avatarScenePromise = null;
     this.avatarAssemblyDone = false;
@@ -150,6 +151,10 @@ class VoiceAssistApp {
     this._populateBrowserVoices();
     this._setupEventListeners();
     this._setupLegacyAuthListener();
+    if (this.animationStyle !== "pending") {
+      this._setState(this.state);
+      if (this.animationStyle === "avatar") this._ensureAvatarScene();
+    }
   }
 
   _setupEventListeners() {
@@ -222,6 +227,10 @@ class VoiceAssistApp {
       this.voiceVolume = Math.min(1, Math.max(0, Number(storage?.getItem("ha_voice_control_volume") ?? 1)));
       this.speechRate = Math.min(1.3, Math.max(0.7, Number(storage?.getItem("ha_voice_control_rate") ?? 1)));
       this.browserVoiceURI = storage?.getItem("ha_voice_control_voice") || "";
+      const rememberedAnimation = storage?.getItem("ha_voice_control_animation");
+      if (["orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal", "avatar"].includes(rememberedAnimation)) {
+        this.animationStyle = rememberedAnimation;
+      }
     } catch (_error) {
       // Private browsing or an embedded webview may reject local storage.
     }
@@ -1092,9 +1101,17 @@ class VoiceAssistApp {
       "orb", "liquid_equalizer", "spectrum", "aurora", "pulse", "constellation", "minimal", "avatar",
     ]);
     const previousStyle = this.animationStyle;
-    this.animationStyle = allowedStyles.has(config.animation_style)
+    const hasConfiguredStyle = allowedStyles.has(config.animation_style);
+    this.animationStyle = hasConfiguredStyle
       ? config.animation_style
-      : "orb";
+      : (allowedStyles.has(previousStyle) ? previousStyle : "orb");
+    if (hasConfiguredStyle) {
+      try {
+        globalThis.localStorage?.setItem("ha_voice_control_animation", this.animationStyle);
+      } catch (_error) {
+        // The HA configuration remains authoritative when storage is unavailable.
+      }
+    }
     if (this.animationStyle !== previousStyle) {
       if (this.animationStyle === "avatar") {
         this._ensureAvatarScene();

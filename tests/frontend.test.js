@@ -113,8 +113,10 @@ test("ships a loadable particle avatar instead of an empty animation canvas", ()
 
   assert.match(main, /log: \(message\) => console\.debug/);
   assert.match(main, /Boolean\(globalThis\.ParticleScene\)/);
+  assert.match(main, /ha_voice_control_animation/);
   assert.match(scene, /globalThis\.ParticleScene = ParticleScene/);
   assert.match(scene, /new URL\(candidate\.url, AVATAR_ASSET_BASE\)/);
+  assert.match(scene, /particle\.region !== 'ambient' && particle\.region !== 'sideTrail'/);
   assert.match(scene, /typeof window\.particleInterface\?\.log === 'function'/);
   assert.equal(target.particleCount, 18000);
   assert.equal(target.particles.length, 18000);

@@ -252,6 +252,11 @@ button {
   place-items: center;
 }
 
+/* Configuration is loaded asynchronously. Keep the stage empty instead of flashing the orb. */
+.animation-pending .animation-container > * {
+  visibility: hidden;
+}
+
 #frequencyRing {
   position: absolute;
   width: min(84vw, 22rem);
@@ -609,6 +614,10 @@ button {
 
 .animation-avatar #avatarCanvas {
   display: block;
+}
+
+.animation-avatar > .ambient {
+  display: none;
 }
 
 /* Never leave Voice Control visually empty when WebGL or an avatar asset fails. */

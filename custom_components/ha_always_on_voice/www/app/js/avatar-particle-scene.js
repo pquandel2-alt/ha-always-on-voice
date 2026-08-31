@@ -600,10 +600,11 @@ class ParticleScene {
         this.genShoulder(pts, Math.round(shoulderBudget / 2), L, -1);
         this.genShoulder(pts, shoulderBudget - Math.round(shoulderBudget / 2), L, 1);
         this.genChest(pts, chestBudget, L);
-        this.genFlowPaths(pts, Math.round(budget * 0.045), L);
+        this.genFlowPaths(pts, 0, L);
         this.genFaceCore(pts, faceCoreBudget, L);
         this.genVolumetricCluster(pts, chestCoreBudget, REGION.CHEST_CORE, 0, L.chestCoreY, L.chestCoreZ, 5 * L.s, 7 * L.s, 4 * L.s, colorChestCore, 1.65 * L.s);
-        this.genAmbient(pts, Math.max(0, ambientBudget - Math.round(budget * 0.045)), L);
+        // Voice Control uses a clean background without detached ambient particles.
+        this.genAmbient(pts, 0, L);
 
         // Pad/trim to the exact configured budget (rounding remainders only).
         while (pts.length < budget) {
@@ -615,7 +616,11 @@ class ParticleScene {
 
     /** Converts normalized 16:10 target-field coordinates into shallow 2.5D world points. */
     generateSharedTargetGeometry() {
-        const source = this.sharedGeometryData.particles;
+        // The tablet screensaver may use a detached aura and fragmented side trails, but
+        // Voice Control intentionally renders only the sculpture on a clean background.
+        const source = this.sharedGeometryData.particles.filter(
+            particle => particle.region !== 'ambient' && particle.region !== 'sideTrail'
+        );
         const requested = Math.min(this.config.particleCount, source.length);
         // Downsampling must not visually change the sculpture. Sparse quality levels keep
         // exactly the same target field and receive only a bounded point-size compensation.
