@@ -284,14 +284,17 @@ class ParticleScene {
         this.isPaused = false;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
+        // Voice Control supplies its own adaptive background. Keep WebGL transparent so the
+        // avatar is integrated into the panel instead of sitting inside a black rectangle.
+        this.scene.background = null;
 
         const w = Math.max(1, this.sizeTarget.clientWidth);
         const h = Math.max(1, this.sizeTarget.clientHeight);
         this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
         this.camera.position.z = 500;
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true, alpha: false });
+        this.renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true, alpha: true });
+        this.renderer.setClearColor(0x000000, 0);
         this.renderer.setSize(w, h);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 

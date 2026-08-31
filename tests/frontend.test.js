@@ -117,6 +117,9 @@ test("ships a loadable particle avatar instead of an empty animation canvas", ()
   assert.match(scene, /globalThis\.ParticleScene = ParticleScene/);
   assert.match(scene, /new URL\(candidate\.url, AVATAR_ASSET_BASE\)/);
   assert.match(scene, /particle\.region !== 'ambient' && particle\.region !== 'sideTrail'/);
+  assert.match(scene, /alpha: true/);
+  assert.match(scene, /setClearColor\(0x000000, 0\)/);
+  assert.doesNotMatch(scene, /scene\.background = new THREE\.Color\(0x000000\)/);
   assert.match(scene, /typeof window\.particleInterface\?\.log === 'function'/);
   assert.equal(target.particleCount, 18000);
   assert.equal(target.particles.length, 18000);
