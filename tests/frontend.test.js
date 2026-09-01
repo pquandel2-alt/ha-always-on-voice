@@ -505,10 +505,28 @@ test("applies the selected browser voice, rate and volume", () => {
     assert.equal(utterance.rate, 1.2);
     assert.equal(utterance.volume, 0.65);
     assert.equal(utterance.voice.voiceURI, "de-premium");
+    assert.equal(typeof utterance.onboundary, "function");
+    utterance.onboundary();
+    assert.equal(app.ttsSyntheticPulse, 1);
   } finally {
     delete global.SpeechSynthesisUtterance;
     delete global.speechSynthesis;
   }
+});
+
+test("drives the avatar face core from TTS output energy", () => {
+  const { app } = createVoiceApp();
+  let avatarLevel = 0;
+  app.animationStyle = "avatar";
+  app.state = "SPEAKING";
+  app.avatarScene = { setAudioLevel: (level) => { avatarLevel = level; } };
+  app.ttsOutputData = new Uint8Array(128);
+  app.ttsOutputAnalyser = {
+    getByteFrequencyData(data) { data.fill(96); },
+  };
+
+  app._drawFrequencyRing(new Uint8Array(0));
+  assert.ok(avatarLevel > 0.8, `expected strong TTS pulse, received ${avatarLevel}`);
 });
 
 test("removes the voiceschanged listener on destroy instead of leaking it", () => {

@@ -187,8 +187,9 @@ void main() {
     if (vRegion == 3.0 || vRegion == 4.0) { // FACE CORE, outer + inner
         float pulse = 0.7 + 0.3 * sin(uTime * 1.3 + seed * 6.2831);
         float inner = vRegion == 4.0 ? 1.0 : 0.0;
-        size *= (1.0 + uFaceCoreEnergy * (0.48 + inner * 0.42)) * (0.82 + pulse * 0.18);
-        alpha *= (0.48 + inner * 0.18) + 0.20 * pulse;
+        float speechPulse = 1.0 + uAudioLevel * (0.30 + inner * 0.18);
+        size *= (1.0 + uFaceCoreEnergy * (0.48 + inner * 0.42)) * (0.82 + pulse * 0.18) * speechPulse;
+        alpha *= ((0.48 + inner * 0.18) + 0.20 * pulse) * (1.0 + uAudioLevel * 0.52);
     } else if (vRegion == 8.0) { // CHEST_CORE
         float pulse = 0.7 + 0.3 * sin(uTime * 1.0 + seed * 6.2831 + 1.5);
         size *= (1.0 + uChestCoreEnergy * 0.8) * pulse;
@@ -243,6 +244,9 @@ void main() {
         alpha *= glowAlpha;
     }
     vColor = aColor;
+    if (vRegion == 3.0 || vRegion == 4.0) {
+        vColor *= 1.0 + uAudioLevel * 0.14;
+    }
     vAlpha = clamp(alpha, 0.0, 1.0);
 
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);

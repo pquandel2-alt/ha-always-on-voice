@@ -79,6 +79,13 @@ class VoiceAssistApp {
     this.currentTtsPlaybackId = null;
     this.currentTtsObjectUrl = null;
     this.currentSpeechUtterance = null;
+    this.ttsOutputAnalyser = null;
+    this.ttsOutputData = null;
+    this.ttsAnalyserSink = null;
+    this.ttsMediaElementSource = null;
+    this.ttsMediaElementConnected = false;
+    this.ttsSyntheticPulse = 0;
+    this.ttsSyntheticPulseAt = 0;
     this.ttsEnded = true;
     this.ttsWasRequested = false;
     this.runEnded = false;
@@ -922,6 +929,7 @@ class VoiceAssistApp {
           }
         };
         this.ttsPlayer.volume = this.voiceVolume;
+        this._connectTtsPlayerAnalyser();
         this.currentTtsObjectUrl = URL.createObjectURL(new Blob(
           [audioData.arrayBuffer],
           { type: audioData.contentType }
@@ -981,6 +989,8 @@ class VoiceAssistApp {
     const source = context.createBufferSource();
     source.buffer = audioBuffer;
     if (this.audio.analyser) source.connect(this.audio.analyser);
+    const outputAnalyser = this._ensureTtsOutputAnalyser();
+    if (outputAnalyser) source.connect(outputAnalyser);
     if (context.createGain) {
       const gain = context.createGain();
       gain.gain.value = this.voiceVolume;
@@ -1044,6 +1054,10 @@ class VoiceAssistApp {
       utterance.lang = globalThis.navigator?.language || "de-DE";
       utterance.rate = this.speechRate;
       utterance.volume = this.voiceVolume;
+      utterance.onboundary = () => {
+        this.ttsSyntheticPulse = 1;
+        this.ttsSyntheticPulseAt = performance.now();
+      };
       const selectedVoice = synth.getVoices?.().find(
         (voice) => voice.voiceURI === this.browserVoiceURI
       );
@@ -1069,6 +1083,69 @@ class VoiceAssistApp {
       const result = context.decodeAudioData(arrayBuffer, resolve, reject);
       if (result?.then) result.then(resolve, reject);
     });
+  }
+
+  _ensureTtsOutputAnalyser() {
+    if (this.ttsOutputAnalyser) return this.ttsOutputAnalyser;
+    const context = this.audio.audioContext;
+    if (!context?.createAnalyser) return null;
+    try {
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.48;
+      if (context.createGain && context.destination) {
+        const silentSink = context.createGain();
+        silentSink.gain.value = 0;
+        analyser.connect(silentSink);
+        silentSink.connect(context.destination);
+        this.ttsAnalyserSink = silentSink;
+      }
+      this.ttsOutputAnalyser = analyser;
+      this.ttsOutputData = new Uint8Array(analyser.frequencyBinCount);
+      return analyser;
+    } catch (error) {
+      console.warn("TTS output analyser unavailable", error);
+      return null;
+    }
+  }
+
+  _connectTtsPlayerAnalyser() {
+    if (this.ttsMediaElementConnected || !this.ttsPlayer) return;
+    const context = this.audio.audioContext;
+    const analyser = this._ensureTtsOutputAnalyser();
+    if (!context?.createMediaElementSource || !analyser) return;
+    try {
+      this.ttsMediaElementSource ||= context.createMediaElementSource(this.ttsPlayer);
+      this.ttsMediaElementSource.connect(analyser);
+      this.ttsMediaElementSource.connect(context.destination);
+      this.ttsMediaElementConnected = true;
+    } catch (error) {
+      // Some older iOS WebViews reject MediaElementSource. Browser-speech rhythm below
+      // still keeps the avatar responsive instead of breaking TTS playback.
+      console.warn("TTS media analyser unavailable", error);
+    }
+  }
+
+  _getTtsOutputLevel() {
+    let level = 0;
+    if (this.ttsOutputAnalyser && this.ttsOutputData) {
+      this.ttsOutputAnalyser.getByteFrequencyData(this.ttsOutputData);
+      const usable = Math.min(72, this.ttsOutputData.length);
+      let sum = 0;
+      for (let i = 2; i < usable; i++) sum += this.ttsOutputData[i];
+      const average = usable > 2 ? sum / (usable - 2) / 255 : 0;
+      // Speech occupies only part of the spectrum. Noise-gate and compress the useful
+      // low/mid-band energy so normal syllables create a clearly visible core pulse.
+      level = Math.max(0, Math.min(1, (average - 0.018) * 4.8));
+    }
+
+    if (this.currentSpeechUtterance) {
+      const age = Math.max(0, performance.now() - this.ttsSyntheticPulseAt);
+      const boundaryPulse = this.ttsSyntheticPulse * Math.exp(-age / 170);
+      const fallbackRhythm = 0.16 + Math.pow(Math.abs(Math.sin(performance.now() * 0.0105)), 2.2) * 0.48;
+      level = Math.max(level, boundaryPulse, fallbackRhythm);
+    }
+    return level;
   }
 
   _primeTtsPlayer() {
@@ -1274,7 +1351,15 @@ class VoiceAssistApp {
 
   _drawFrequencyRing(frequencyData) {
     if (this.animationStyle === "avatar") {
-      if (frequencyData.length && this.avatarScene) {
+      if (this.avatarScene) {
+        if (this.state === "SPEAKING") {
+          this.avatarScene.setAudioLevel?.(this._getTtsOutputLevel());
+          return;
+        }
+        if (!frequencyData.length) {
+          this.avatarScene.setAudioLevel?.(0);
+          return;
+        }
         let sum = 0;
         for (let i = 0; i < frequencyData.length; i++) sum += frequencyData[i];
         this.avatarScene.setAudioLevel?.(sum / frequencyData.length / 255);

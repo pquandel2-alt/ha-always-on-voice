@@ -23,7 +23,7 @@ from .const import (
 from .websocket_api import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
-_FRONTEND_VERSION = "1.4.6"
+_FRONTEND_VERSION = "1.4.7"
 _ISSUE_NO_HTTPS = "no_https_url"
 
 PLATFORMS: list[Platform] = [
