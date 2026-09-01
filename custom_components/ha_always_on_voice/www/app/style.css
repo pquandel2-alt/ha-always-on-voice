@@ -4,7 +4,7 @@
 
 :host,
 :root {
-  --bg: #070b13;
+  --bg: #000000;
   --surface: rgba(15, 23, 38, 0.82);
   --surface-solid: #101827;
   --line: rgba(148, 163, 184, 0.16);
@@ -46,9 +46,7 @@ button {
 #app {
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 50% 48%, rgba(var(--accent-rgb), 0.065), transparent 32%),
-    linear-gradient(160deg, #0b1220 0%, #070b13 52%, #09101c 100%);
+  background: #000000;
   transition: --accent 400ms ease;
 }
 

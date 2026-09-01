@@ -135,6 +135,16 @@ test("ships a loadable particle avatar instead of an empty animation canvas", ()
   assert.ok(!target.regions.includes("sideTrail"));
 });
 
+test("uses one black page background behind the particle avatar", () => {
+  const style = fs.readFileSync(
+    path.join(__dirname, "../custom_components/ha_always_on_voice/www/app/style.css"),
+    "utf8"
+  );
+  assert.match(style, /--bg:\s*#000000/);
+  assert.match(style, /#app\s*\{[^}]*background:\s*#000000/s);
+  assert.doesNotMatch(style, /linear-gradient\(160deg,\s*#0b1220/);
+});
+
 test("converts normalized float audio to signed 16-bit PCM", () => {
   const capture = new AudioCapture();
   assert.deepEqual(
