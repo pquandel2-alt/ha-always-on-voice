@@ -335,7 +335,11 @@ class ParticleScene {
         this.positions = null;
         this.startPositions = null;
         this.targetPositions = null;
+        this.assemblyAnchors = null;
+        this.assemblyPhases = null;
         this.meta = null; // [region, pathT, noiseSeed] per particle
+        this.alphas = null;
+        this.baseAlphas = null;
         this.particleGeometry = null;
         this.particleSystem = null;
         this.glowSystem = null;
@@ -484,18 +488,22 @@ class ParticleScene {
             this.initializeParticles();
             return;
         }
-        // Fresh spawn positions every time — never just re-fade an already-assembled figure.
+        // Re-run the same directed chest-orb sweep on every assembly.
         for (let i = 0; i < this.particleCountActual; i++) {
-            const s = this.randomStartPosition();
             const idx = i * 3;
+            const p = this.targetPoints[i];
+            const seed = this.meta[idx + 2];
+            const s = this.assemblyStartForPoint(p, seed);
             this.startPositions[idx] = s.x;
             this.startPositions[idx + 1] = s.y;
             this.startPositions[idx + 2] = s.z;
             this.positions[idx] = s.x;
             this.positions[idx + 1] = s.y;
             this.positions[idx + 2] = s.z;
+            this.alphas[i] = p.region === REGION.CHEST_CORE ? this.baseAlphas[i] : 0;
         }
         this.particleGeometry.attributes.position.needsUpdate = true;
+        this.particleGeometry.attributes.aAlpha.needsUpdate = true;
     }
 
     setState(stateName) {
@@ -506,7 +514,11 @@ class ParticleScene {
         if (stateName === 'ASSEMBLING' && !this.config.assemblyEnabled) {
             // Assembly-animation disabled in settings → snap straight to the finished figure.
             this.positions.set(this.targetPositions);
-            if (this.particleGeometry) this.particleGeometry.attributes.position.needsUpdate = true;
+            this.alphas.set(this.baseAlphas);
+            if (this.particleGeometry) {
+                this.particleGeometry.attributes.position.needsUpdate = true;
+                this.particleGeometry.attributes.aAlpha.needsUpdate = true;
+            }
             this.currentState = 'IDLE';
             this.syncReferenceVisual();
             this.log('Assembly completed (instant, animation disabled)');
@@ -594,7 +606,10 @@ class ParticleScene {
      * hands off to initializeParticles() to pack it into typed arrays / GPU buffers.
      */
     generateTargetGeometry() {
-        if (this.sharedGeometryData?.particles?.length) {
+        if (this.sharedGeometryData && (
+            this.sharedGeometryData.particles?.length ||
+            this.sharedGeometryData.format === 'ha-voice-columnar-v1'
+        )) {
             this.generateSharedTargetGeometry();
             return;
         }
@@ -1184,16 +1199,22 @@ class ParticleScene {
         this.positions = new Float32Array(n * 3);
         this.startPositions = new Float32Array(n * 3);
         this.targetPositions = new Float32Array(n * 3);
+        this.assemblyAnchors = new Float32Array(n * 3);
+        this.assemblyPhases = new Float32Array(n);
         this.meta = new Float32Array(n * 3);
         const colors = new Float32Array(n * 3);
         const sizes = new Float32Array(n);
-        const alphas = new Float32Array(n);
+        this.alphas = new Float32Array(n);
+        this.baseAlphas = new Float32Array(n);
 
         for (let i = 0; i < n; i++) {
             const p = this.targetPoints[i];
             const idx = i * 3;
 
-            const startPos = this.randomStartPosition();
+            const seed = p.seed ?? this.random();
+            const startPos = this.assemblyStartForPoint(p, seed);
+            const phase = this.assemblyPhaseForPoint(p);
+            const anchor = this.sampleSweepPath(phase);
             this.startPositions[idx] = startPos.x;
             this.startPositions[idx + 1] = startPos.y;
             this.startPositions[idx + 2] = startPos.z;
@@ -1204,16 +1225,21 @@ class ParticleScene {
             this.targetPositions[idx] = p.x;
             this.targetPositions[idx + 1] = p.y;
             this.targetPositions[idx + 2] = p.z;
+            this.assemblyAnchors[idx] = anchor.x;
+            this.assemblyAnchors[idx + 1] = anchor.y;
+            this.assemblyAnchors[idx + 2] = anchor.z;
+            this.assemblyPhases[i] = phase;
 
             this.meta[idx] = p.region;
             this.meta[idx + 1] = p.pathT;
-            this.meta[idx + 2] = p.seed ?? this.random();
+            this.meta[idx + 2] = seed;
 
             colors[idx] = p.color.r;
             colors[idx + 1] = p.color.g;
             colors[idx + 2] = p.color.b;
             sizes[i] = p.size;
-            alphas[i] = p.baseAlpha ?? 1;
+            this.baseAlphas[i] = p.baseAlpha ?? 1;
+            this.alphas[i] = settled || p.region === REGION.CHEST_CORE ? this.baseAlphas[i] : 0;
         }
 
         if (settled) {
@@ -1229,7 +1255,9 @@ class ParticleScene {
         geometry.setAttribute('position', posAttr);
         geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
         geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-        geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+        const alphaAttr = new THREE.BufferAttribute(this.alphas, 1);
+        alphaAttr.setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute('aAlpha', alphaAttr);
         geometry.setAttribute('aMeta', new THREE.BufferAttribute(this.meta, 3));
         this.particleGeometry = geometry;
 
@@ -1307,6 +1335,85 @@ class ParticleScene {
         }
     }
 
+    /**
+     * Returns the visible energy-sweep spine in world coordinates. The curve starts in
+     * the chest orb, travels over the left shoulder and left head edge, crosses the crown,
+     * then descends along the right head edge and ends at the right shoulder.
+     */
+    sampleSweepPath(t) {
+        const L = this.layout;
+        const points = [
+            [0.00, 0, L.chestCoreY, L.chestCoreZ],
+            [0.16, -L.shoulderReachX * 0.82, L.shoulderCenterY + 5 * L.s, 12 * L.s],
+            [0.29, -L.headHalfWidthMax * 0.96, L.headBottomY + 15 * L.s, 8 * L.s],
+            [0.43, -L.headHalfWidthMax * 0.72, L.headTopY - 2 * L.s, 6 * L.s],
+            [0.50, 0, L.headTopY + 3 * L.s, 5 * L.s],
+            [0.64, L.headHalfWidthMax * 0.96, L.headCenterY, 8 * L.s],
+            [0.78, L.headHalfWidthMax * 0.82, L.headBottomY + 8 * L.s, 8 * L.s],
+            [1.00, L.shoulderReachX * 0.90, L.shoulderCenterY + 3 * L.s, 12 * L.s],
+        ];
+        const clamped = Math.max(0, Math.min(1, t));
+        for (let i = 0; i < points.length - 1; i++) {
+            const a = points[i], b = points[i + 1];
+            if (clamped > b[0]) continue;
+            const raw = (clamped - a[0]) / (b[0] - a[0]);
+            const u = raw * raw * (3 - 2 * raw);
+            return {
+                x: a[1] + (b[1] - a[1]) * u,
+                y: a[2] + (b[2] - a[2]) * u,
+                z: a[3] + (b[3] - a[3]) * u,
+            };
+        }
+        const last = points[points.length - 1];
+        return { x: last[1], y: last[2], z: last[3] };
+    }
+
+    /** Maps each finished point onto the chest → left → crown → right sweep timeline. */
+    assemblyPhaseForPoint(p) {
+        const L = this.layout;
+        const x = p.x;
+        const xHead = Math.min(1, Math.abs(x) / Math.max(1, L.headHalfWidthMax));
+        const xShoulder = Math.min(1, Math.abs(x) / Math.max(1, L.shoulderReachX));
+        const headUp = Math.max(0, Math.min(1,
+            (p.y - L.headBottomY) / Math.max(1, L.headTopY - L.headBottomY)
+        ));
+
+        if (p.region === REGION.CHEST_CORE) return 0;
+        if (p.region === REGION.NECK_FLOW) return 0.05 + (1 - headUp) * 0.05;
+        if (p.region === REGION.CHEST_FLOW) {
+            return x <= 0 ? 0.06 + xShoulder * 0.12 : 0.70 + xShoulder * 0.10;
+        }
+        if (p.region === REGION.SHOULDER_FLOW || p.region === REGION.SHOULDER_RIM) {
+            return x <= 0 ? 0.08 + xShoulder * 0.11 : 0.72 + xShoulder * 0.10;
+        }
+        if (p.region === REGION.FACE_CORE_OUTER || p.region === REGION.FACE_CORE_INNER) {
+            return 0.50 + Math.max(-1, Math.min(1, x / L.headHalfWidthMax)) * 0.07;
+        }
+        if (p.region === REGION.HEAD_SURFACE || p.region === REGION.HEAD_BACK ||
+            p.region === REGION.HEAD_MID || p.region === REGION.HEAD_FRONT ||
+            p.region === REGION.HEAD_FLOW || p.region === REGION.HEAD_RIM ||
+            p.region === REGION.HEAD_RIM_MAIN || p.region === REGION.HEAD_RIM_INNER) {
+            return x <= 0
+                ? 0.20 + headUp * 0.28 - xHead * 0.025
+                : 0.49 + (1 - headUp) * 0.20 + xHead * 0.035;
+        }
+        return x <= 0 ? 0.10 + xShoulder * 0.14 : 0.70 + xShoulder * 0.10;
+    }
+
+    /** All visible particles are emitted from a small deterministic cluster around the orb. */
+    assemblyStartForPoint(p, seed) {
+        if (p.region === REGION.CHEST_CORE) {
+            return { x: p.x, y: p.y, z: p.z };
+        }
+        const angle = seed * Math.PI * 2;
+        const radius = (0.7 + ((seed * 97.31) % 1) * 2.6) * this.layout.s;
+        return {
+            x: Math.cos(angle) * radius,
+            y: this.layout.chestCoreY + Math.sin(angle) * radius,
+            z: this.layout.chestCoreZ + (((seed * 53.17) % 1) - 0.5) * 3 * this.layout.s,
+        };
+    }
+
     // ──────── Animation Loop ────────
 
     animate() {
@@ -1331,13 +1438,17 @@ class ParticleScene {
 
         this.updateEnvelopes(dt);
 
-        if (this.currentState === 'ASSEMBLING') {
+        const wasAssembling = this.currentState === 'ASSEMBLING';
+        if (wasAssembling) {
             this.simulateAssembling(dt);
         } else {
             this.simulateSettled(dt);
         }
 
         this.particleGeometry.attributes.position.needsUpdate = true;
+        if (wasAssembling) {
+            this.particleGeometry.attributes.aAlpha.needsUpdate = true;
+        }
 
         // Frontal view stays the primary view — only a very small organic sway, no
         // continuous spin (per design: this is a face-forward holographic bust).
@@ -1377,36 +1488,56 @@ class ParticleScene {
         this.uniforms.uErrorFlash.value = this.errorFlash;
     }
 
-    /** Hierarchical build-up: each region eases in within its own REGION_WINDOW slice. */
+    /** Directed chest-orb sweep: left shoulder/head first, crown, then right head/shoulder. */
     simulateAssembling(dt) {
         const progress = Math.min(1, this.elapsedTime / this.config.assemblyDurationMs);
-        const pos = this.positions, start = this.startPositions, target = this.targetPositions, meta = this.meta;
+        const pos = this.positions;
+        const start = this.startPositions;
+        const target = this.targetPositions;
+        const anchor = this.assemblyAnchors;
+        const phases = this.assemblyPhases;
+        const meta = this.meta;
         let allDone = true;
 
         for (let i = 0; i < this.particleCountActual; i++) {
             const idx = i * 3;
             const region = meta[idx];
             const seed = meta[idx + 2];
-            const regionWindow = REGION_WINDOW[region] || [0, 1];
-            const jitter = (seed - 0.5) * 0.08;
-            // The stochastic start offset must never prevent the global 100% frame from
-            // completing (especially for core regions whose nominal window already ends at 1).
+            const jitter = (seed - 0.5) * 0.018;
+            const begin = Math.max(0, phases[i] + jitter);
+            const finish = Math.min(1, begin + 0.18);
             const local = progress >= 1
                 ? 1
-                : Math.max(0, Math.min(1, (progress - (regionWindow[0] + jitter)) / (regionWindow[1] - regionWindow[0])));
+                : Math.max(0, Math.min(1, (progress - begin) / Math.max(0.01, finish - begin)));
             if (local < 1) allDone = false;
-            const eased = easeInOutCubic(local);
+            // Waiting particles stay invisible. Only the currently travelling stream is
+            // emitted from the orb, preventing thousands of points from becoming one huge blob.
+            this.alphas[i] = this.baseAlphas[i] * (region === REGION.CHEST_CORE
+                ? 1
+                : Math.max(0, Math.min(1, local * 4)));
+            if (local <= 0) {
+                pos[idx] = start[idx];
+                pos[idx + 1] = start[idx + 1];
+                pos[idx + 2] = start[idx + 2];
+                continue;
+            }
 
-            const noiseAmount = (1 - eased) * 26;
-            const nx = Math.sin(seed * 900 + i) * noiseAmount;
-            const ny = Math.cos(seed * 700 + i) * noiseAmount;
+            const travelEnd = 0.68;
+            const travelling = local < travelEnd;
+            const u = easeInOutCubic(travelling ? local / travelEnd : (local - travelEnd) / (1 - travelEnd));
+            const from = travelling ? start : anchor;
+            const to = travelling ? anchor : target;
+            const noiseAmount = (1 - local) * 4.5 * this.layout.s;
+            const nx = Math.sin(seed * 900 + i * 0.37) * noiseAmount;
+            const ny = Math.cos(seed * 700 + i * 0.29) * noiseAmount;
 
-            pos[idx] = start[idx] + (target[idx] - start[idx]) * eased + nx;
-            pos[idx + 1] = start[idx + 1] + (target[idx + 1] - start[idx + 1]) * eased + ny;
-            pos[idx + 2] = start[idx + 2] + (target[idx + 2] - start[idx + 2]) * eased;
+            pos[idx] = from[idx] + (to[idx] - from[idx]) * u + nx;
+            pos[idx + 1] = from[idx + 1] + (to[idx + 1] - from[idx + 1]) * u + ny;
+            pos[idx + 2] = from[idx + 2] + (to[idx + 2] - from[idx + 2]) * u;
         }
 
         if (progress >= 1 && allDone && !this.assemblyCompleteLogged) {
+            this.alphas.set(this.baseAlphas);
             this.assemblyCompleteLogged = true;
             this.log('Assembly completed');
             this.currentState = 'IDLE';

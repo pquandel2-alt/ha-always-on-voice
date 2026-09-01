@@ -120,6 +120,11 @@ test("ships a loadable particle avatar instead of an empty animation canvas", ()
   assert.match(main, /ha_voice_control_animation/);
   assert.match(scene, /globalThis\.ParticleScene = ParticleScene/);
   assert.match(scene, /versionedAssetUrl\(candidate\.url\)/);
+  assert.match(scene, /assemblyStartForPoint\(p, seed\)/);
+  assert.match(scene, /assemblyPhaseForPoint\(p\)/);
+  assert.match(scene, /sampleSweepPath\(phase\)/);
+  assert.match(scene, /Directed chest-orb sweep/);
+  assert.match(scene, /this\.sharedGeometryData\.format === 'ha-voice-columnar-v1'/);
   assert.match(scene, /particle\.region !== 'ambient' && particle\.region !== 'sideTrail'/);
   assert.match(scene, /alpha: true/);
   assert.match(scene, /setClearColor\(0x000000, 0\)/);
